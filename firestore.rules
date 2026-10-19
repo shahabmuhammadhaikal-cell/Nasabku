@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default DENY. Pada Fase 1 semua akses data melalui API (Admin SDK)
+    // yang melewati rules; klien tidak boleh membaca/menulis langsung.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
