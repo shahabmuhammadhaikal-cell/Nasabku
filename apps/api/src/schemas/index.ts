@@ -35,6 +35,72 @@ export const changeMemberSchema = z
     message: "NO_CHANGES",
   });
 
+/**
+ * Skema individu (entitas nasab historis).
+ *
+ - Tanggal dibuat bebas format (max 40 karakter) karena data historis
+   sering hanya memuat tahun atau format tak standar, mis. "1331".
+ - Relasi (ayah/ibu/pasangan) menyimpan ID dokumen person di workspace
+   yang sama; validasi keberadaan dilakukan di layanan.
+ */
+const personIdField = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{4,64}$/)
+  .nullish();
+
+const optionalText = (max: number) =>
+  z.string().trim().max(max).nullish().transform((v) => (v === "" ? null : v));
+
+export const personCreateSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    gender: z.enum(["L", "P", ""]).optional(),
+    birthDate: optionalText(40),
+    birthPlace: optionalText(160),
+    deathDate: optionalText(40),
+    deathPlace: optionalText(160),
+    fatherId: personIdField,
+    motherId: personIdField,
+    spouseId: personIdField,
+    notes: optionalText(2000),
+  })
+  .refine(
+    (v) =>
+      (!v.fatherId || v.fatherId !== v.motherId) &&
+      (!v.fatherId || v.fatherId !== v.spouseId) &&
+      (!v.motherId || v.motherId !== v.spouseId),
+    { message: "INVALID_RELATION" },
+  );
+
+export const personPatchSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    gender: z.enum(["L", "P", ""]).optional(),
+    birthDate: optionalText(40),
+    birthPlace: optionalText(160),
+    deathDate: optionalText(40),
+    deathPlace: optionalText(160),
+    fatherId: personIdField,
+    motherId: personIdField,
+    spouseId: personIdField,
+    notes: optionalText(2000),
+  })
+  .refine(
+    (v) => {
+      const k = Object.values(v);
+      return k.some((x) => x !== undefined);
+    },
+    { message: "NO_CHANGES" },
+  )
+  .refine(
+    (v) =>
+      (!v.fatherId || v.fatherId !== v.motherId) &&
+      (!v.fatherId || v.fatherId !== v.spouseId) &&
+      (!v.motherId || v.motherId !== v.spouseId),
+    { message: "INVALID_RELATION" },
+  );
+
 export const auditQuerySchema = z.object({
   workspaceId: z
     .string()

@@ -15,6 +15,9 @@ export const AUDIT_ACTIONS = [
   "member.added",
   "member.updated",
   "member.removed",
+  "person.created",
+  "person.updated",
+  "person.deleted",
   "access.denied",
 ] as const;
 

@@ -140,6 +140,75 @@
           <p class="muted activity-hint">Riwayat lengkap tersedia melalui endpoint audit untuk pemegang izin audit.</p>
         </div>
 
+        <!-- ==== Individu & silsilah ==== -->
+        <div class="section-title">
+          <h4>Individu &amp; silsilah</h4>
+          <button id="btn-tree" class="btn btn-secondary btn-mini" type="button">Gambar silsilah</button>
+        </div>
+        <p id="ppl-hint" class="muted ppl-hint hidden">
+          Hanya RESEARCHER yang boleh mengubah individu (person:write). Anda dapat melihat silsilah saja.
+        </p>
+        <form id="form-person" class="form-person hidden">
+          <div class="pp-grid">
+            <label>
+              <span>Nama lengkap *</span>
+              <input id="pp-name" type="text" required minlength="2" maxlength="120" placeholder="mis. Halim bin Abdul" />
+            </label>
+            <label>
+              <span>Jenis kelamin</span>
+              <select id="pp-gender">
+                <option value="">— tidak dicatat —</option>
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+              </select>
+            </label>
+            <label>
+              <span>Lahir</span>
+              <input id="pp-birth" type="text" maxlength="40" placeholder="tanggal/tahun lahir" />
+            </label>
+            <label>
+              <span>Tempat lahir</span>
+              <input id="pp-birth-pl" type="text" maxlength="160" placeholder="kota/kampung" />
+            </label>
+            <label>
+              <span>Wafat</span>
+              <input id="pp-death" type="text" maxlength="40" placeholder="tanggal/tahun wafat" />
+            </label>
+            <label>
+              <span>Tempat wafat</span>
+              <input id="pp-death-pl" type="text" maxlength="160" placeholder="kota/kampung" />
+            </label>
+            <label>
+              <span>Ayah</span>
+              <select id="pp-father"><option value="">— tidak diisi —</option></select>
+            </label>
+            <label>
+              <span>Ibu</span>
+              <select id="pp-mother"><option value="">— tidak diisi —</option></select>
+            </label>
+            <label>
+              <span>Pasangan</span>
+              <select id="pp-spouse"><option value="">— tidak diisi —</option></select>
+            </label>
+            <label class="pp-wide">
+              <span>Catatan</span>
+              <input id="pp-notes" type="text" maxlength="2000" placeholder="sumber, diaries, keterangan lain…" />
+            </label>
+          </div>
+          <div class="row-right">
+            <button id="pp-cancel" class="btn btn-ghost" type="button">Batal</button>
+            <button id="pp-save" class="btn btn-primary" type="submit">Simpan individu</button>
+          </div>
+        </form>
+        <div id="btn-person-new-wrap" class="row-right hidden">
+          <button id="btn-person-new" class="btn btn-primary" type="button">+ Tambah individu</button>
+        </div>
+        <div id="tree-wrap" class="glass tree-wrap hidden">
+          <p class="muted tree-tip">Kotak bawah = anak dari kotak atasnya. Gunakan daftar di bawah untuk detail lengkap.</p>
+          <div id="tree-root" class="tree-root"></div>
+        </div>
+        <div id="person-list" class="person-list"></div>
+
         <div class="section-title">
           <h4>Anggota</h4>
           <form id="form-invite" class="form-inline compact">

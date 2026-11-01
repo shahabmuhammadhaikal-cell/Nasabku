@@ -56,12 +56,15 @@ export function initFirebase(env: Env): FirebaseHandles {
     process.env.FIREBASE_AUTH_EMULATOR_HOST ??= "localhost:9099";
     process.env.FIRESTORE_EMULATOR_HOST ??= "localhost:8080";
   }
+  const credential = serviceAccountCredential(env);
   const app =
     getApps().length > 0
       ? getApp()
       : initializeApp({
           projectId: env.FIREBASE_PROJECT_ID,
-          credential: serviceAccountCredential(env),
+          // Jangan teruskan credential: undefined — Admin SDK menolaknya.
+          // Bila tak ada service account (mis. lokal/GCP), biarkan ADC.
+          ...(credential ? { credential } : {}),
         });
   const db = getFirestore(app);
   return { app, auth: getAuth(app), db };

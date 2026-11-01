@@ -6,6 +6,8 @@ import {
   addMemberSchema,
   changeMemberSchema,
   createWorkspaceSchema,
+  personCreateSchema,
+  personPatchSchema,
   updateWorkspaceSchema,
 } from "../schemas";
 import {
@@ -18,6 +20,12 @@ import {
   listWorkspacesForUser,
   updateWorkspace,
 } from "../services/workspace";
+import {
+  createPerson,
+  deletePerson,
+  listPersons,
+  updatePerson,
+} from "../services/person";
 import type { ApiDeps } from "../types/context";
 
 function paramId(value: string | string[] | undefined): string {
@@ -96,6 +104,86 @@ export function workspacesRouter(deps: ApiDeps): Router {
       const rid = req.requestId ?? "req_unknown";
       const stats = await getWorkspaceStats(db, req.workspace?.id ?? "");
       res.status(200).json(successEnvelope({ stats }, rid));
+    },
+  );
+
+  router.get(
+    "/:workspaceId/persons",
+    requireWorkspacePermission(deps, "person:read"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const items = await listPersons(db, req.workspace?.id ?? "");
+      res.status(200).json(successEnvelope({ items }, rid));
+    },
+  );
+
+  router.post(
+    "/:workspaceId/persons",
+    requireWorkspacePermission(deps, "person:write"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const body = personCreateSchema.parse(req.body);
+      const person = await createPerson(db, {
+        workspaceId: req.workspace?.id ?? "",
+        actorUid: req.auth?.uid ?? "",
+        requestId: rid,
+        data: {
+          name: body.name,
+          gender: body.gender,
+          birthDate: body.birthDate ?? null,
+          birthPlace: body.birthPlace ?? null,
+          deathDate: body.deathDate ?? null,
+          deathPlace: body.deathPlace ?? null,
+          fatherId: body.fatherId ?? null,
+          motherId: body.motherId ?? null,
+          spouseId: body.spouseId ?? null,
+          notes: body.notes ?? null,
+        },
+      });
+      res.status(201).json(successEnvelope({ person }, rid));
+    },
+  );
+
+  router.patch(
+    "/:workspaceId/persons/:personId",
+    requireWorkspacePermission(deps, "person:write"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const body = personPatchSchema.parse(req.body);
+      const person = await updatePerson(db, {
+        workspaceId: req.workspace?.id ?? "",
+        personId: paramId(req.params.personId),
+        actorUid: req.auth?.uid ?? "",
+        requestId: rid,
+        patch: {
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.gender !== undefined ? { gender: body.gender } : {}),
+          ...("birthDate" in body ? { birthDate: body.birthDate ?? null } : {}),
+          ...("birthPlace" in body ? { birthPlace: body.birthPlace ?? null } : {}),
+          ...("deathDate" in body ? { deathDate: body.deathDate ?? null } : {}),
+          ...("deathPlace" in body ? { deathPlace: body.deathPlace ?? null } : {}),
+          ...("fatherId" in body ? { fatherId: body.fatherId ?? null } : {}),
+          ...("motherId" in body ? { motherId: body.motherId ?? null } : {}),
+          ...("spouseId" in body ? { spouseId: body.spouseId ?? null } : {}),
+          ...("notes" in body ? { notes: body.notes ?? null } : {}),
+        },
+      });
+      res.status(200).json(successEnvelope({ person }, rid));
+    },
+  );
+
+  router.delete(
+    "/:workspaceId/persons/:personId",
+    requireWorkspacePermission(deps, "person:write"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      await deletePerson(db, {
+        workspaceId: req.workspace?.id ?? "",
+        personId: paramId(req.params.personId),
+        actorUid: req.auth?.uid ?? "",
+        requestId: rid,
+      });
+      res.status(200).json(successEnvelope({ deleted: true }, rid));
     },
   );
 

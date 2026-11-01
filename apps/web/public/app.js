@@ -1,9 +1,9 @@
 import { apiFetch } from "./api.js";
 import { firebaseReady, signOutFirebase, signIn, register } from "./firebase.js";
-import { renderActivity, renderDashboard, renderDetail, renderStats, toast } from "./ui.js";
+import { renderActivity, renderDashboard, renderDetail, renderPersons, renderStats, renderTree, toast } from "./ui.js";
 
 /** Satu-satunya titik navigasi SPA sederhana. */
-let state = { user: null, memberships: [], detailId: null, slug: "" };
+let state = { user: null, memberships: [], detailId: null, slug: "", persons: [], editPersonId: null };
 
 async function bootstrap() {
   // Sesi kue (cookie) mungkin masih sah dari kunjungan lalu:
@@ -69,13 +69,15 @@ async function loadList() {
 export async function openDetail(workspaceId) {
   // Statistik & jejak aktivitas opsional: dibungkus catch agar peran
   // tanpa izin tetap melihat detail dengan rapi (panel ikut disembunyikan).
-  const [ws, members, stats, audit] = await Promise.all([
+  const [ws, members, stats, audit, persons] = await Promise.all([
     apiFetch(`/api/v1/workspaces/${workspaceId}`),
     apiFetch(`/api/v1/workspaces/${workspaceId}/members`),
     apiFetch(`/api/v1/workspaces/${workspaceId}/stats`).catch(() => null),
     apiFetch(`/api/v1/audit-events?workspaceId=${workspaceId}&limit=20`).catch(() => null),
+    apiFetch(`/api/v1/workspaces/${workspaceId}/persons`).catch(() => ({ items: [] })),
   ]);
   const list = members.items ?? [];
+  state.persons = persons.items ?? [];
   state.detail = ws.workspace;
   renderDetail({ workspace: ws.workspace, members: list }, {
     back: () => { state.detail = null; void loadList(); },
@@ -106,6 +108,36 @@ export async function openDetail(workspaceId) {
   const bolehEdit = ws.workspace.role === "PLATFORM_ADMIN";
   document.getElementById("btn-edit-ws").classList.toggle("hidden", !bolehEdit);
   document.getElementById("form-edit-ws").classList.add("hidden");
+
+  // ===== Individu & silsilah =====
+  const bolehTulis = ws.workspace.role === "RESEARCHER"; // person:write
+  document.getElementById("ppl-hint").classList.toggle("hidden", bolehTulis);
+  document.getElementById("btn-person-new-wrap").classList.toggle("hidden", !bolehTulis);
+  document.getElementById("form-person").classList.add("hidden");
+  state.editPersonId = null;
+  const tbTree = document.getElementById("btn-tree");
+  tbTree.textContent = "Gambar silsilah";
+  document.getElementById("tree-wrap").classList.add("hidden");
+  renderPersons(state.persons, {
+    canWrite: bolehTulis,
+    onEdit: (person) => bukaFormPerson(person),
+    onDelete: async (person) => {
+      const yakin = window.confirm(
+        `Hapus individu "${person.name}"? Relasi yang merujuk kepadanya akan dibersihkan.`,
+      );
+      if (!yakin) return;
+      try {
+        await apiFetch(`/api/v1/workspaces/${workspaceId}/persons/${person.id}`, {
+          method: "DELETE",
+        });
+        toast("Individu dihapus.");
+        void openDetail(workspaceId);
+      } catch (err) {
+        toast(err?.message || "Gagal menghapus individu.", "err");
+      }
+    },
+  });
+  renderTree(state.persons);
 }
 
 // === Pengikatan form ===
@@ -196,6 +228,106 @@ document.getElementById("form-edit-ws").addEventListener("submit", async (e) => 
     void openDetail(id);
   } catch (err) {
     toast(err?.message || "Gagal mengubah nama workspace.", "err");
+  }
+});
+
+// ===== Individu & silsilah: formulir, dropdown relasi, pohon =====
+const qid = (id) => document.getElementById(id);
+
+/** Isi dropdown ayah/ibu/pasangan dari daftar individu saat ini. */
+function isiSelectRelasi(editId) {
+  for (const id of ["pp-father", "pp-mother", "pp-spouse"]) {
+    const sel = qid(id);
+    sel.innerHTML = "";
+    const def = document.createElement("option");
+    def.value = "";
+    def.textContent = "— tidak diisi —";
+    sel.appendChild(def);
+    for (const p of state.persons) {
+      if (editId && p.id === editId) continue; // tidak boleh merujuk diri sendiri
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+function bukaFormPerson(person) {
+  state.editPersonId = person?.id ?? null;
+  isiSelectRelasi(person?.id ?? null);
+  qid("pp-name").value = person?.name ?? "";
+  qid("pp-gender").value = person?.gender ?? "";
+  qid("pp-birth").value = person?.birthDate ?? "";
+  qid("pp-birth-pl").value = person?.birthPlace ?? "";
+  qid("pp-death").value = person?.deathDate ?? "";
+  qid("pp-death-pl").value = person?.deathPlace ?? "";
+  qid("pp-father").value = person?.fatherId ?? "";
+  qid("pp-mother").value = person?.motherId ?? "";
+  qid("pp-spouse").value = person?.spouseId ?? "";
+  qid("pp-notes").value = person?.notes ?? "";
+  qid("pp-save").textContent = person ? "Simpan perubahan" : "Simpan individu";
+  qid("btn-person-new-wrap").classList.add("hidden");
+  qid("form-person").classList.remove("hidden");
+  qid("pp-name").focus();
+}
+
+function tutupFormPerson() {
+  state.editPersonId = null;
+  qid("form-person").classList.add("hidden");
+  if (state.detail?.role === "RESEARCHER") {
+    qid("btn-person-new-wrap").classList.remove("hidden");
+  }
+}
+
+qid("btn-person-new").addEventListener("click", () => bukaFormPerson(null));
+qid("pp-cancel").addEventListener("click", tutupFormPerson);
+
+qid("btn-tree").addEventListener("click", () => {
+  const wrap = qid("tree-wrap");
+  const tersembunyi = wrap.classList.toggle("hidden");
+  qid("btn-tree").textContent = tersembunyi ? "Gambar silsilah" : "Sembunyikan pohon";
+  if (!tersembunyi) renderTree(state.persons);
+});
+
+qid("form-person").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const wid = state.detail?.id;
+  if (!wid) return;
+  const tubuh = {
+    name: qid("pp-name").value.trim(),
+    gender: qid("pp-gender").value,
+    birthDate: qid("pp-birth").value.trim(),
+    birthPlace: qid("pp-birth-pl").value.trim(),
+    deathDate: qid("pp-death").value.trim(),
+    deathPlace: qid("pp-death-pl").value.trim(),
+    fatherId: qid("pp-father").value || null,
+    motherId: qid("pp-mother").value || null,
+    spouseId: qid("pp-spouse").value || null,
+    notes: qid("pp-notes").value.trim(),
+  };
+  const btn = qid("pp-save");
+  btn.disabled = true;
+  try {
+    if (state.editPersonId) {
+      await apiFetch(`/api/v1/workspaces/${wid}/persons/${state.editPersonId}`, {
+        method: "PATCH",
+        body: tubuh,
+      });
+      toast("Data individu diperbarui.");
+    } else {
+      await apiFetch(`/api/v1/workspaces/${wid}/persons`, {
+        method: "POST",
+        body: tubuh,
+      });
+      toast("Individu ditambahkan ke silsilah.");
+    }
+    tutupFormPerson();
+    void openDetail(wid);
+  } catch (err) {
+    toast(err?.message || "Gagal menyimpan individu.", "err");
+  } finally {
+    btn.disabled = false;
   }
 });
 

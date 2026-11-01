@@ -146,6 +146,9 @@ const ACTION_LABEL = {
   "member.added": "Anggota ditambahkan",
   "member.updated": "Keanggotaan diubah",
   "member.removed": "Akses anggota dicabut",
+  "person.created": "Individu ditambahkan",
+  "person.updated": "Data individu diperbarui",
+  "person.deleted": "Individu dihapus",
 };
 
 const WAKTU_OPSI = { dateStyle: "medium", timeStyle: "short" };
@@ -233,4 +236,145 @@ export function renderDetail({ workspace, members }, handle) {
   table.appendChild(tbody);
   wrap.appendChild(table);
   toast(`${workspace.name}: ${aktif} anggota aktif dari ${members.length} tercatat.`);
+}
+
+/**
+ * Daftar kartu individu di halaman detail.
+ * handle: { canWrite, onEdit(person), onDelete(person) }.
+ */
+export function renderPersons(persons, handle) {
+  const wrap = q("person-list");
+  wrap.innerHTML = "";
+  const byId = new Map(persons.map((p) => [p.id, p]));
+  const namaOrang = (id) => {
+    const p = id ? byId.get(id) : null;
+    return p ? p.name : null;
+  };
+
+  if (persons.length === 0) {
+    wrap.appendChild(
+      el(
+        `<div class="empty">${TREE_SVG}<b>Belum ada individu tercatat</b>Tambahkan leluhur pertama — silsilah akan tergambar dari sini.</div>`,
+      ),
+    );
+    return;
+  }
+
+  for (const p of persons) {
+    const genderLabel = p.gender === "L" ? "Laki-laki" : p.gender === "P" ? "Perempuan" : "—";
+    const chip = (t) => (t ? el(`<span class="badge badge-soft"></span>`) : null);
+    const card = el(
+      `<article class="person-card glass">
+        <div class="person-main">
+          <h5 class="person-name"></h5>
+          <div class="person-chips"></div>
+          <div class="person-rel muted"></div>
+        </div>
+        <div class="person-actions row-actions"></div>
+      </article>`,
+    );
+    card.querySelector(".person-name").textContent = p.name;
+
+    const boxes = card.querySelector(".person-chips");
+    const genderChip = chip(genderLabel);
+    if (genderChip) {
+      genderChip.textContent = genderLabel;
+      boxes.appendChild(genderChip);
+    }
+    for (const t of [
+      p.birthDate ? `Lahir: ${p.birthDate}${p.birthPlace ? ` · ${p.birthPlace}` : ""}` : null,
+      p.deathDate ? `Wafat: ${p.deathDate}${p.deathPlace ? ` · ${p.deathPlace}` : ""}` : null,
+    ]) {
+      const c = chip(t);
+      if (c) {
+        c.textContent = t;
+        boxes.appendChild(c);
+      }
+    }
+
+    const rel = card.querySelector(".person-rel");
+    const bagian = [];
+    const ayah = namaOrang(p.fatherId);
+    const ibu = namaOrang(p.motherId);
+    const pasangan = namaOrang(p.spouseId);
+    if (ayah) bagian.push(`Ayah: ${ayah}`);
+    if (ibu) bagian.push(`Ibu: ${ibu}`);
+    if (pasangan) bagian.push(`Pasangan: ${pasangan}`);
+    rel.textContent = bagian.length ? bagian.join(" · ") : "Relasi belum diisi";
+
+    if (handle.canWrite) {
+      const tombolSun = el(`<button class="btn btn-secondary btn-mini" type="button">Sunting</button>`);
+      tombolSun.addEventListener("click", () => handle.onEdit(p));
+      const tombolHapus = el(`<button class="btn btn-danger btn-mini" type="button">Hapus</button>`);
+      tombolHapus.addEventListener("click", () => handle.onDelete(p));
+      card.querySelector(".person-actions").append(tombolSun, tombolHapus);
+    }
+    wrap.appendChild(card);
+  }
+}
+
+/** Mengembalikan jawab untuk mengisi 1 kartu pohon. */
+function pohonBox(p) {
+  const box = el(
+    `<div class="tree-person">
+       <b class="tp-name"></b>
+       <small class="tp-meta"></small>
+     </div>`,
+  );
+  box.dataset.pid = p.id;
+  box.classList.add(p.gender === "P" ? "tp-P" : p.gender === "L" ? "tp-L" : "tp-U");
+  box.querySelector(".tp-name").textContent = p.name;
+  const masa = [p.birthDate ? `lahir ${p.birthDate}` : null, p.deathDate ? `wafat ${p.deathDate}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  box.querySelector(".tp-meta").textContent = masa;
+  return box;
+}
+
+/**
+ * Pohon silsilah sederhana: garis keturunan dari leluhur tanpa orang
+ * tua (root). Anak mengikuti ayah bila ada, bila tidak kendati ibu.
+ * Siklus tidak mungkin (divalidasi di backend).
+ */
+export function renderTree(persons) {
+  const root = q("tree-root");
+  root.innerHTML = "";
+  const byId = new Map(persons.map((p) => [p.id, p]));
+  const anakDari = new Map();
+  const punyaOrangTua = new Set();
+  for (const p of persons) {
+    const ortu = p.fatherId ?? p.motherId ?? null;
+    if (ortu && byId.has(ortu)) {
+      punyaOrangTua.add(p.id);
+      const list = anakDari.get(ortu) ?? [];
+      list.push(p);
+      anakDari.set(ortu, list);
+    }
+  }
+
+  function bangun(p) {
+    const node = el(`<div class="tree-node"></div>`);
+    node.appendChild(pohonBox(p));
+    const anak = (anakDari.get(p.id) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name, "id"));
+    if (anak.length > 0) {
+      const kids = el(`<div class="tree-children"></div>`);
+      for (const a of anak) {
+        const cabang = el(`<div class="tree-branch"></div>`);
+        cabang.appendChild(bangun(a));
+        kids.appendChild(cabang);
+      }
+      node.appendChild(kids);
+    }
+    return node;
+  }
+
+  const roots = persons
+    .filter((p) => !punyaOrangTua.has(p.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "id"));
+  const sisa = roots.length > 0 ? roots : persons; // pengaman usai: silsilah selalu tampil
+  for (const r of sisa) {
+    const cabang = el(`<div class="tree-branch tree-branch-root"></div>`);
+    cabang.appendChild(bangun(r));
+    root.appendChild(cabang);
+  }
 }
