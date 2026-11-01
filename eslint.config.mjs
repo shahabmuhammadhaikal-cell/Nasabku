@@ -29,4 +29,25 @@ export default tseslint.config(
       "no-console": "off",
     },
   },
+  {
+    // Web UI statik (fase 8): JavaScript browser murni tanpa bundler.
+    files: ["apps/web/public/**/*.js"],
+    languageOptions: {
+      sourceType: "module",
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        fetch: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        FormData: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+      },
+    },
+    rules: {
+      "no-console": "off",
+    },
+  },
 );

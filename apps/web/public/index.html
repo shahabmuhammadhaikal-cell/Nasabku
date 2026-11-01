@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nasabku</title>
+  <meta name="description" content="Platform privat dokumentasi nasab historis berbasis sumber" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B1%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🌱 Nasabku</div>
+    <div id="userbox" class="userbox hidden">
+      <span id="user-email" class="muted"></span>
+      <button id="btn-logout" class="btn btn-ghost" type="button">Keluar</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ===== Layar Masuk / Daftar ===== -->
+    <section id="view-auth" class="view">
+      <div class="card card-auth">
+        <h1 id="auth-title">Masuk ke Nasabku</h1>
+        <p class="muted">Masuk dengan akun email &amp; kata sandi yang terdaftar di Firebase proyek ini.</p>
+        <form id="form-auth" autocomplete="on">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" type="email" required autocomplete="email" placeholder="nama@contoh.id" />
+          <label for="auth-password">Kata sandi</label>
+          <input id="auth-password" type="password" required minlength="6" autocomplete="current-password" placeholder="minimal 6 karakter" />
+          <div class="auth-actions">
+            <button id="btn-login" class="btn btn-primary" type="submit">Masuk</button>
+            <button id="btn-register" class="btn btn-secondary" type="button">Daftar akun baru</button>
+          </div>
+          <p id="auth-error" class="error hidden" role="alert"></p>
+          <p id="auth-setup" class="error hidden" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== Dashboard ===== -->
+    <section id="view-app" class="view hidden">
+      <div class="card">
+        <div class="row-between">
+          <h2>Workspace saya</h2>
+          <button id="btn-refresh" class="btn btn-ghost" type="button">Muat ulang</button>
+        </div>
+        <form id="form-create-ws" class="form-inline">
+          <input id="ws-name" type="text" required minlength="3" maxlength="120" placeholder="Nama workspace baru, mis. Nasab Keluarga Halim" />
+          <button class="btn btn-primary" type="submit">Buat</button>
+        </form>
+        <div id="ws-list" class="ws-list"></div>
+      </div>
+
+      <!-- ==== Detail workspace ==== -->
+      <div id="ws-detail" class="card hidden">
+        <div class="row-between">
+          <div>
+            <h2 id="wsd-name">—</h2>
+            <span id="wsd-meta" class="muted"></span>
+          </div>
+          <button id="btn-back" class="btn btn-ghost" type="button">← Kembali</button>
+        </div>
+
+    <h3>Anggota</h3>
+    <form id="form-invite" class="form-inline">
+      <input id="invite-email" type="email" required placeholder="email anggota" />
+      <select id="invite-role" required></select>
+      <button class="btn btn-primary" type="submit">+ Tambah</button>
+    </form>
+        <div id="member-list"></div>
+      </div>
+    </section>
+
+    <p id="toast-error" class="error hidden" role="alert"></p>
+  </main>
+
+  <footer class="footer muted">
+    Nasabku fase 8 (awal) — UI memakai API publik yang sama di /api/v1.
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

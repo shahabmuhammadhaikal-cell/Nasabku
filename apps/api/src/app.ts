@@ -3,6 +3,8 @@ import { ApiError } from "@nasabku/shared";
 import cookieParser from "cookie-parser";
 import express, { Router, type Express, type Request } from "express";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import pinoHttp from "pino-http";
 import { authenticate } from "./middleware/auth";
 import { corsAndOriginGuard } from "./middleware/cors";
@@ -16,6 +18,13 @@ import { workspacesRouter } from "./routes/workspaces";
 import type { ApiDeps } from "./types/context";
 
 const asRequest = (value: unknown): Request => value as Request;
+
+/**
+ * Folder statik web UI (apps/web/public). Dihitung relatif terhadap file ini
+ * sehingga sama benar via tsx (src/) maupun bundle (dist/); keduanya
+ * menghasilkan <root>/apps/web/public.
+ */
+const webPublicDir = fileURLToPath(new URL("../../web/public", import.meta.url));
 
 /**
  * Susunan middleware (urutan penting):
@@ -60,6 +69,21 @@ export function createApp(deps: ApiDeps): Express {
   v1.use("/workspaces", workspacesRouter(deps));
   v1.use("/audit-events", auditRouter(deps));
   app.use("/api/v1", v1);
+
+  // Web UI statik — satu asal (same-origin) dengan API sehingga cookie
+  // sesi HttpOnly berjalan alami dan penjaga origin tak menghalangi.
+  app.use(express.static(webPublicDir));
+
+  // Rute non-/api yang tidak cocok file statik → halaman SPA.
+  app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api")) {
+      res.sendFile(path.join(webPublicDir, "index.html"), (err) => {
+        if (err) next(ApiError.notFound("Halaman tidak ditemukan."));
+      });
+      return;
+    }
+    next();
+  });
 
   app.use((_req, _res, next) => next(ApiError.notFound("Endpoint tidak ditemukan.")));
   app.use(errorHandler(logger));
