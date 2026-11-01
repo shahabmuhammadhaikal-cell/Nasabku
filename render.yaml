@@ -1,0 +1,32 @@
+# Blueprint Render — https://render.com/docs/blueprint-spec
+# Dibaca Render saat membuat layanan dari repo ini (Deploy panel → Blueprint).
+# Nilai `sync: false` diisi manual/env secret saat pertama deploy:
+#   FIREBASE_PROJECT_ID             → ID proyek Firebase nyata (bukan demo-)
+#   FIREBASE_SERVICE_ACCOUNT_JSON   → JSON service account penuh (secret)
+#   APP_ORIGIN                      → URL API Render, mis. https://nasabku-api.onrender.com
+# Kredensial semua berupa secret; tidak ada nilai rahasia di file ini.
+services:
+  - type: web
+    name: nasabku-api
+    runtime: node
+    plan: free
+    healthCheckPath: /api/v1/health/ready
+    buildCommand: npm ci && npm run build
+    startCommand: node apps/api/dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: USE_FIREBASE_EMULATORS
+        value: "false"
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: APP_ORIGIN
+        sync: false
+      - key: API_CORS_ORIGINS
+        sync: false
+      - key: SESSION_COOKIE_NAME
+        value: nasabku_session

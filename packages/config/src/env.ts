@@ -46,6 +46,9 @@ const EnvSchema = z
 
     USE_FIREBASE_EMULATORS: boolFromEnv(true),
     FIREBASE_PROJECT_ID: z.string().min(1).default("demo-nasabku"),
+    // Isi JSON service account penuh ( production, non-GCP host seperti Render).
+    // Bila kosong, Admin SDK memakai Application Default Credentials.
+    FIREBASE_SERVICE_ACCOUNT_JSON: z.string().default(""),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.USE_FIREBASE_EMULATORS) {
