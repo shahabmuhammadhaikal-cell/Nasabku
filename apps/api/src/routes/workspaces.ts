@@ -13,6 +13,7 @@ import {
   changeMember,
   createWorkspace,
   getWorkspace,
+  getWorkspaceStats,
   listMembers,
   listWorkspacesForUser,
   updateWorkspace,
@@ -85,6 +86,16 @@ export function workspacesRouter(deps: ApiDeps): Router {
       res.status(200).json(
         successEnvelope({ workspace: { ...workspace, role: req.workspace?.role } }, rid),
       );
+    },
+  );
+
+  router.get(
+    "/:workspaceId/stats",
+    requireWorkspacePermission(deps, "workspace:read"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const stats = await getWorkspaceStats(db, req.workspace?.id ?? "");
+      res.status(200).json(successEnvelope({ stats }, rid));
     },
   );
 

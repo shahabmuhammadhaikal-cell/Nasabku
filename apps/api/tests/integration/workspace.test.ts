@@ -293,4 +293,45 @@ describe("Workspace & anggota (Emulator Suite)", () => {
       .set("Cookie", admin.cookie);
     expect(badAction.status).toBe(400);
   });
+
+  it("statistik workspace: admin 200; non-anggota 404; anggota lain terbaca", async () => {
+    const admin = await newSession(ctx.app, "statA");
+    const auditorUser = await newSession(ctx.app, "statAud");
+    const outsider = await newSession(ctx.app, "statB");
+    const ws = await createWorkspace(admin, "Ruang Statistik");
+
+    // Undang satu anggota agar komposisi peran tidak sepi.
+    await request(ctx.app)
+      .post(`/api/v1/workspaces/${ws.id}/members`)
+      .set("Cookie", admin.cookie)
+      .send({ email: auditorUser.email, role: "AUDITOR" });
+
+    const res = await request(ctx.app)
+      .get(`/api/v1/workspaces/${ws.id}/stats`)
+      .set("Cookie", admin.cookie);
+    expect(res.status).toBe(200);
+    expect(res.body.data.stats).toMatchObject({
+      totalMembers: 2,
+      activeMembers: 2,
+      revokedMembers: 0,
+    });
+    expect(res.body.data.stats.byRole).toMatchObject({
+      PLATFORM_ADMIN: 1,
+      AUDITOR: 1,
+    });
+    expect(typeof res.body.data.stats.lastActivityAt).toBe("string");
+
+    // AUDITOR punya workspace:read → boleh melihat statistik.
+    const resAud = await request(ctx.app)
+      .get(`/api/v1/workspaces/${ws.id}/stats`)
+      .set("Cookie", auditorUser.cookie);
+    expect(resAud.status).toBe(200);
+
+    // Non-anggota: 404, keberadaan workspace tetap tidak bocor.
+    const resOut = await request(ctx.app)
+      .get(`/api/v1/workspaces/${ws.id}/stats`)
+      .set("Cookie", outsider.cookie);
+    expect(resOut.status).toBe(404);
+    expect(resOut.body.error.code).toBe("NOT_FOUND");
+  });
 });

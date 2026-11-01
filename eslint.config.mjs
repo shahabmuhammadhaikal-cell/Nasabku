@@ -37,6 +37,7 @@ export default tseslint.config(
       globals: {
         window: "readonly",
         document: "readonly",
+        navigator: "readonly",
         fetch: "readonly",
         console: "readonly",
         setTimeout: "readonly",
@@ -44,6 +45,8 @@ export default tseslint.config(
         FormData: "readonly",
         URL: "readonly",
         URLSearchParams: "readonly",
+        Date: "readonly",
+        Map: "readonly",
       },
     },
     rules: {

@@ -412,3 +412,44 @@ export async function listAuditEvents(
   const nextCursor = snap.docs.length > input.limit ? (pageDocs[pageDocs.length - 1]?.id ?? null) : null;
   return { items, nextCursor };
 }
+
+export interface WorkspaceStatsDto {
+  totalMembers: number;
+  activeMembers: number;
+  revokedMembers: number;
+  byRole: Record<string, number>;
+  lastActivityAt: string | null;
+}
+
+/**
+ * Statistik ringkas satu workspace — dihitung langsung dari koleksi
+ * keanggotaan tanpa agregasi berbayar: satu getP() cukup untuk ukuran
+ * workspace pada fase ini.
+ */
+export async function getWorkspaceStats(
+  db: Firestore,
+  workspaceId: string,
+): Promise<WorkspaceStatsDto> {
+  const snap = await db.collection(`workspaces/${workspaceId}/memberships`).get();
+  const byRole: Record<string, number> = {};
+  let activeMembers = 0;
+  let revokedMembers = 0;
+  let latest: Timestamp | null = null;
+  for (const doc of snap.docs) {
+    const data = doc.data() as Record<string, unknown>;
+    const status = String(data.status ?? "");
+    if (status === "ACTIVE") activeMembers += 1;
+    else if (status === "REVOKED") revokedMembers += 1;
+    const role = String(data.role ?? "TAK_DIKETAHUI");
+    byRole[role] = (byRole[role] ?? 0) + 1;
+    const ts = data.updatedAt;
+    if (ts instanceof Timestamp && (!latest || ts > latest)) latest = ts;
+  }
+  return {
+    totalMembers: snap.size,
+    activeMembers,
+    revokedMembers,
+    byRole,
+    lastActivityAt: toIso(latest),
+  };
+}
