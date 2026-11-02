@@ -1,12 +1,7 @@
-// Konfigurasi Firebase Web (BUKAN rahasia — apiKey web memang dipakai public).
-// Ambil nilainya dari: Firebase Console → Project settings → General →
-// "Your apps" (Web app) → SDK setup and configuration.
-// Auth domain Render harus ditambahkan di: Authentication → Settings →
-// Authorized domains (mis. nasabku-api.onrender.com).
-
+// Konfigurasi Firebase Web (bukan rahasia — apiKey web memang dipakai publik).
 export const firebaseConfig = {
-  apiKey: "ISI_DARI_FIREBASE_CONSOLE",
+  apiKey: "AIzaSyCOXaOiVvg6QIB_bFHKiRnLQNgTVssm44Q",
   authDomain: "nasabku-prod.firebaseapp.com",
   projectId: "nasabku-prod",
-  appId: "ISI_DARI_FIREBASE_CONSOLE",
+  appId: "1:605812691285:web:7996b683b80a4de73f9fdc",
 };
