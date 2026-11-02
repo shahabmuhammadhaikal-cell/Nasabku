@@ -37,8 +37,30 @@ export async function signIn(email, password) {
   return cred.user.getIdToken();
 }
 
+export async function signOutFirebase() {
+  if (!auth) throw new Error("Firebase belum diinisialisasi.");
+  await signOut(auth);
+}
+
+/**
+ * Daftar akun baru lewat Firebase Auth (client-side), lalu langsung
+ * masuk: minta idToken dari akun yang baru dibuat dan serahkan ke
+ * endpoint /api/v1/auth/login backend pakai sesi cookie.
+ *
+ * Pendekatan ini meninggalkan login manual berulang; flow menjadi
+ * satu langkah: daftar → masuk → masuk ke app.
+ */
 export async function register(email, password) {
   if (!configured) throw new Error("Firebase belum dikonfigurasi (firebase-config.js).");
-  await createUserWithEmailAndPassword(auth, email, password);
-  await signOut(auth); // akun launcher baru: minta user masuk manual agar jelas.
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  // Ambil ID token untuk sesi backend (akun barusan dibuat, sudah ada
+  // di dalam auth state setelah createUserWithEmailAndPassword resolves).
+  const idToken = await cred.user.getIdToken();
+  // Hubungkan ke backend sekaligus: buat sesi cookie.
+  await fetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ idToken }),
+  }).catch(() => {});
 }

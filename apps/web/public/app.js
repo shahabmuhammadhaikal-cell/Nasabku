@@ -176,7 +176,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
 
 document.getElementById("btn-logout").addEventListener("click", async () => {
   await apiFetch("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
-  await signOutFirebase();
+  await signOutFirebase().catch(() => {});
   state.user = null;
   state.memberships = [];
   showAuth();
