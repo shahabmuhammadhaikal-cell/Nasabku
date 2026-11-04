@@ -452,6 +452,62 @@ export function renderPersonDetail(person, leluhur, sumber, handle) {
   wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+/**
+ * Panel tracer nasab: satu individu pangkal, lalu garis ke atas
+ * (leluhur) dan ke bawah (keturunan). handle: { onOpen, onCompare }.
+ */
+export function renderTracer(person, leluhur, keturunan, handle) {
+  const out = q("tracer-out");
+  out.innerHTML = "";
+  const kepala = el(
+    `<p class="tracer-root">Pangkal: <b class="tr-root-name"></b><span class="muted tr-root-meta"></span></p>`,
+  );
+  kepala.querySelector(".tr-root-name").textContent = person.name;
+  kepala
+    .querySelector(".tr-root-meta")
+    .textContent = [person.birthDate, person.deathDate].filter(Boolean).join(" — ") || "";
+
+  const seksi = (judul, proyek, kosong) => {
+    const sec = el(
+      `<div class="tr-sec"><h5 class="tr-sec-title"></h5><ul class="tr-list"></ul></div>`,
+    );
+    sec.querySelector("h5").textContent = judul;
+    const ul = sec.querySelector("ul");
+    if (proyek.length === 0) {
+      ul.appendChild(el(`<li class="muted"></li>`));
+      ul.lastElementChild.textContent = kosong;
+      return sec;
+    }
+    for (const item of proyek) {
+      const li = el(
+        `<li class="tr-item">
+          <span class="tr-gen badge-soft badge"></span>
+          <b class="tr-name"></b>
+          <span class="muted tr-via"></span>
+          <span class="row-actions tr-btns"></span>
+        </li>`,
+      );
+      li.querySelector(".tr-gen").textContent = `G${item.depth}`;
+      li.querySelector(".tr-name").textContent = item.person.name;
+      li.querySelector(".tr-via").textContent = item.via ? ` · jalur ${item.via}` : "";
+      const btns = li.querySelector(".tr-btns");
+      const bDetail = el(`<button class="btn btn-secondary btn-mini" type="button">Detail</button>`);
+      bDetail.addEventListener("click", () => handle.onOpen(item.person));
+      btns.appendChild(bDetail);
+      const bBand = el(`<button class="btn btn-ghost btn-mini" type="button">Pembanding</button>`);
+      bBand.addEventListener("click", () => handle.onCompare(item.person));
+      btns.appendChild(bBand);
+      ul.appendChild(li);
+    }
+    return sec;
+  };
+  out.append(
+    kepala,
+    seksi("Garis ke atas: leluhur", leluhur, "Belum ada leluhur terekam."),
+    seksi("Garis ke bawah: keturunan", keturunan, "Belum ada keturunan terekam."),
+  );
+}
+
 /** Alat hitung hubungan dua individu di panel relate. */
 export function renderRelation(relation) {
   const out = q("rel-out");

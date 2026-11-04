@@ -7,6 +7,12 @@ export const loginSchema = z.object({
   idToken: z.string().min(16).max(40000),
 });
 
+/** Pendaftaran langsung via backend (tanpa SDK klien). */
+export const registerSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(320),
+  password: z.string().min(8).max(72),
+});
+
 export const createWorkspaceSchema = z.object({
   name: z.string().trim().min(3).max(120),
   slug: z.string().trim().min(3).max(64).regex(SLUG_PATTERN).optional(),

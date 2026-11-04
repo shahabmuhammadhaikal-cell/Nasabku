@@ -5,7 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { createSession, destroySession } from "../services/session";
 import { listUserMemberships, upsertUserOnLogin } from "../services/user";
 import { recordAudit } from "../services/audit";
-import { loginSchema } from "../schemas";
+import { loginSchema, registerSchema } from "../schemas";
 import type { ApiDeps } from "../types/context";
 
 /**
@@ -21,6 +21,76 @@ export function authRouter(deps: ApiDeps): Router {
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_AUTH_MAX,
     keyPrefix: "auth",
+  });
+
+  // Pendaftaran langsung dari backend: akun dibuat di Firebase Auth
+  // via Admin SDK, tanpa perlu SDK klien. Sesi cookie diterbitkan di
+  // tempat sama sehingga pengguna langsung masuk setelah daftar.
+  router.post("/register", loginLimiter, async (req, res) => {
+    const rid = req.requestId ?? "req_unknown";
+    const { email, password } = registerSchema.parse(req.body);
+
+    let uid: string;
+    try {
+      const akun = await firebaseAuth.createUser({
+        email,
+        password,
+        emailVerified: false,
+        disabled: false,
+      });
+      uid = akun.uid;
+    } catch (err) {
+      const kode = (err as { code?: string })?.code ?? "";
+      await recordAudit(db, {
+        action: "user.registered",
+        actorType: "user",
+        resourceType: "session",
+        resourceId: null,
+        requestId: rid,
+        outcome: "failure",
+        metadata: { reason: kode || "unknown" },
+      }).catch(() => {});
+      // Admin SDK: auth/email-already-exists; klien SDK: auth/email-already-in-use.
+      if (kode === "auth/email-already-exists" || kode === "auth/email-already-in-use") {
+        throw ApiError.conflict("Email sudah terdaftar. Gunakan tombol Masuk.");
+      }
+      if (kode === "auth/weak-password" || kode === "auth/invalid-password" || kode === "auth/invalid-email") {
+        throw ApiError.validation("Email atau sandi tidak memenuhi kebijakan.", [
+          { field: "password", reason: "AUTH_RULE" },
+        ]);
+      }
+      logger.warn({ err: String(err), requestId: rid }, "pembuatan akun gagal");
+      throw ApiError.internal("Pendaftaran gagal. Coba lagi nanti.");
+    }
+
+    const user = await upsertUserOnLogin(
+      db,
+      { uid, email, name: null, emailVerified: false },
+      rid,
+    );
+    await recordAudit(db, {
+      action: "user.registered",
+      actorType: "user",
+      resourceType: "session",
+      resourceId: uid,
+      requestId: rid,
+      outcome: "success",
+    }).catch(() => {});
+
+    const { token, expiresAt } = await createSession(
+      db,
+      uid,
+      env.SESSION_TTL_HOURS * 3600 * 1000,
+    );
+    res.cookie(env.SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(expiresAt),
+    });
+    const memberships = await listUserMemberships(db, uid);
+    res.status(201).json(successEnvelope({ user, memberships }, rid));
   });
 
   router.post("/login", loginLimiter, async (req, res) => {

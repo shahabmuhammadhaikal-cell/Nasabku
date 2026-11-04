@@ -408,6 +408,60 @@ export async function ancestorsOf(
   return out;
 }
 
+export interface DescendantNode {
+  person: PersonDto;
+  depth: number; // 1 = anak langsung
+  via: "ayah" | "ibu" | "keduanya";
+}
+
+/**
+ * Telusuri turunan ke bawah satu induk: BFS per generasi dari map
+ * individu aktif, lengkap dengan jalur kedekatannya.
+ */
+export async function descendantsOf(
+  db: Firestore,
+  workspaceId: string,
+  personId: string,
+): Promise<DescendantNode[]> {
+  const byId = await loadActivePersons(db, workspaceId);
+  if (!byId.has(personId)) {
+    throw ApiError.notFound("Individu tidak ditemukan.");
+  }
+  const anakLangsung: string[] = [];
+  for (const [childId, cd] of byId) {
+    if (cd.fatherId === personId || cd.motherId === personId) anakLangsung.push(childId);
+  }
+  const out: DescendantNode[] = [];
+  const visited = new Set<string>([personId]);
+  let frontier: Array<{ id: string; via: DescendantNode["via"]; depth: number }> = [];
+  for (const id of anakLangsung) frontier.push({ id, via: "keduanya", depth: 1 });
+  while (frontier.length > 0) {
+    const nextFrontier: typeof frontier = [];
+    for (const node of frontier) {
+      if (visited.has(node.id)) continue;
+      visited.add(node.id);
+      if (node.depth > 20) continue; // pengaman kedalaman garis turunan
+      const data = byId.get(node.id);
+      if (!data) continue;
+      out.push({ person: personDto(node.id, data), depth: node.depth, via: node.via });
+      for (const [childId, cd] of byId) {
+        const lewatAyah = cd.fatherId === node.id;
+        const lewatIbu = cd.motherId === node.id;
+        if (lewatAyah && lewatIbu) {
+          nextFrontier.push({ id: childId, via: "keduanya", depth: node.depth + 1 });
+        } else if (lewatAyah) {
+          nextFrontier.push({ id: childId, via: "ayah", depth: node.depth + 1 });
+        } else if (lewatIbu) {
+          nextFrontier.push({ id: childId, via: "ibu", depth: node.depth + 1 });
+        }
+      }
+    }
+    frontier = nextFrontier;
+  }
+  out.sort((a, b) => a.depth - b.depth || a.person.name.localeCompare(b.person.name, "id"));
+  return out;
+}
+
 export interface RelationEdge {
   fromId: string;
   toId: string;

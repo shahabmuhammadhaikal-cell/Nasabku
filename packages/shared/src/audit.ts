@@ -10,6 +10,7 @@ export const AUDIT_ACTIONS = [
   "user.login",
   "user.login_failed",
   "user.logout",
+  "user.registered",
   "workspace.created",
   "workspace.updated",
   "member.added",

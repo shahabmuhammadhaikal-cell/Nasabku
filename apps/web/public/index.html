@@ -145,6 +145,7 @@
           <h4>Individu &amp; silsilah</h4>
           <div class="row-actions">
             <button id="btn-tree" class="btn btn-secondary btn-mini" type="button">Gambar silsilah</button>
+            <button id="btn-tracer" class="btn btn-secondary btn-mini" type="button">Tracer nasab</button>
             <button id="btn-relate" class="btn btn-secondary btn-mini" type="button">Hitung hubungan</button>
             <button id="btn-gedcom" class="btn btn-secondary btn-mini" type="button">Ekspor GEDCOM</button>
           </div>
@@ -221,6 +222,17 @@
             <button id="btn-relate-run" class="btn btn-primary btn-mini" type="button">Cari jalur nasab</button>
           </div>
           <div id="rel-out" class="rel-out"></div>
+        </div>
+
+        <div id="tracer-wrap" class="glass tracer-wrap hidden">
+          <h5 class="tracer-title">Tracer nasab: telusuri leluhur dan keturunan</h5>
+          <div class="tracer-grid">
+            <select id="tracer-a"><option value="">— pilih individu pangkal —</option></select>
+            <button id="btn-tracer-run" class="btn btn-primary btn-mini" type="button">Lacak garis</button>
+          </div>
+          <div id="tracer-out" class="tracer-out">
+            <p class="muted">Pilih satu individu pangkal, lalu lacak ke atas (leluhur) dan ke bawah (keturunan) dalam satu putaran.</p>
+          </div>
         </div>
 
         <div id="person-detail" class="glass person-detail hidden"></div>

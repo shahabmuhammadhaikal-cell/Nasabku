@@ -24,6 +24,7 @@ import {
 import {
   ancestorsOf,
   createPerson,
+  descendantsOf,
   createSource,
   deletePerson,
   deleteSource,
@@ -199,6 +200,20 @@ export function workspacesRouter(deps: ApiDeps): Router {
     async (req, res) => {
       const rid = req.requestId ?? "req_unknown";
       const items = await ancestorsOf(
+        db,
+        req.workspace?.id ?? "",
+        paramId(req.params.personId),
+      );
+      res.status(200).json(successEnvelope({ items }, rid));
+    },
+  );
+
+  router.get(
+    "/:workspaceId/persons/:personId/descendants",
+    requireWorkspacePermission(deps, "person:read"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const items = await descendantsOf(
         db,
         req.workspace?.id ?? "",
         paramId(req.params.personId),

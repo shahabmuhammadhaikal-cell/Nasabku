@@ -7,6 +7,7 @@ import {
   renderPersons,
   renderPersonDetail,
   renderRelation,
+  renderTracer,
   renderStats,
   renderTree,
   toast,
@@ -152,6 +153,9 @@ export async function openDetail(workspaceId) {
   document.getElementById("rel-out").innerHTML = "";
   document.getElementById("btn-relate").textContent = "Hitung hubungan";
   isiSelectRelate();
+  document.getElementById("tracer-wrap").classList.add("hidden");
+  document.getElementById("btn-tracer").textContent = "Tracer nasab";
+  isiSelectTracer();
   renderPersons(state.persons, {
     canWrite: bolehTulis,
     onEdit: (person) => bukaFormPerson(person),
@@ -197,9 +201,33 @@ document.getElementById("form-auth").addEventListener("submit", async (e) => {
 });
 
 document.getElementById("btn-register").addEventListener("click", async () => {
+  const elGagal = document.getElementById("auth-error");
   try {
     const email = document.getElementById("auth-email").value.trim();
     const password = document.getElementById("auth-password").value;
+    elGagal.classList.add("hidden");
+    try {
+      // Jalur utama: pendaftaran langsung di backend; sesi cookie diterbitkan
+      // sehingga pengguna langsung masuk tanpa mengulang tombol Masuk.
+      const data = await apiFetch("/api/v1/auth/register", {
+        method: "POST",
+        body: { email, password },
+      });
+      state.user = data.user;
+      state.memberships = data.memberships ?? [];
+      toast("Akun dibuat. Anda langsung masuk.");
+      enterApp();
+      return;
+    } catch (beErr) {
+      if (typeof beErr?.status === "number" && beErr.status !== 404) {
+        // Galat pasti dari server (409/400/500): tampilkan langsung.
+        elGagal.textContent = beErr?.message || "Pendaftaran gagal. Periksa email dan sandi.";
+        elGagal.classList.remove("hidden");
+        return;
+      }
+      // 404 = backend belum punya rute pendaftaran; lanjut jalur lama.
+    }
+    // Cadangan: backend tak terjangkau → jalur SDK klien Firebase lama.
     await register(email, password);
     toast("Akun dibuat. Silakan masuk.");
     document.getElementById("btn-login").click();
@@ -386,6 +414,60 @@ function isiSelectRelate() {
   }
 }
 
+/** Isi dropdown pangkal tracer dari daftar individu saat ini. */
+function isiSelectTracer() {
+  const sel = qid("tracer-a");
+  sel.innerHTML = "";
+  const def = document.createElement("option");
+  def.value = "";
+  def.textContent = "— pilih individu pangkal —";
+  sel.appendChild(def);
+  for (const p of state.persons) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  }
+}
+
+/** Jalankan tracer: leluhur + keturunan satu individu pangkal. */
+async function jalankanTracer() {
+  const wid = state.detail?.id;
+  if (!wid) return;
+  const pidPangkal = qid("tracer-a").value;
+  if (!pidPangkal) {
+    toast("Pilih individu pangkal dulu.", "err");
+    return;
+  }
+  const out = qid("tracer-out");
+  out.innerHTML = "<p class='muted'>Menelusuri garis…</p>";
+  const btn = qid("btn-tracer-run");
+  btn.disabled = true;
+  try {
+    const [anc, des] = await Promise.all([
+      apiFetch(`/api/v1/workspaces/${wid}/persons/${pidPangkal}/ancestors`),
+      apiFetch(`/api/v1/workspaces/${wid}/persons/${pidPangkal}/descendants`),
+    ]);
+    const pangkal = state.persons.find((p) => p.id === pidPangkal);
+    if (!pangkal) return;
+    renderTracer(pangkal, anc.items ?? [], des.items ?? [], {
+      onOpen: (person) => void bukaDetailIndividu(person),
+      onCompare: (person) => {
+        if (!qid("rel-a").value) qid("rel-a").value = pidPangkal;
+        qid("rel-b").value = person.id;
+        qid("relate-wrap").classList.remove("hidden");
+        qid("btn-relate").textContent = "Tutup pencari hubungan";
+        toast("Pembanding dipilih; jalur akan dihitung di panel hubungan.");
+      },
+    });
+  } catch (err) {
+    out.innerHTML = "";
+    toast(err?.message || "Gagal menelusuri garis.", "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /** Buka panel detail satu individu: leluhur + sumber diambil dari API. */
 async function bukaDetailIndividu(person) {
   const wid = state.detail?.id;
@@ -519,6 +601,13 @@ qid("btn-gedcom").addEventListener("click", () => {
   kirimUnduh(`${state.slug || "nasabku"}.ged`, susunGedcom(), "text/plain;charset=utf-8");
   toast(`Ekspor GEDCOM ${state.persons.length} individu berhasil diunduh.`);
 });
+
+qid("btn-tracer").addEventListener("click", () => {
+  const tersembunyi = qid("tracer-wrap").classList.toggle("hidden");
+  qid("btn-tracer").textContent = tersembunyi ? "Tracer nasab" : "Tutup tracer nasab";
+});
+
+qid("btn-tracer-run").addEventListener("click", () => void jalankanTracer());
 
 qid("btn-relate").addEventListener("click", () => {
   const tersembunyi = qid("relate-wrap").classList.toggle("hidden");
