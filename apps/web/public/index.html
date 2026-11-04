@@ -143,7 +143,11 @@
         <!-- ==== Individu & silsilah ==== -->
         <div class="section-title">
           <h4>Individu &amp; silsilah</h4>
-          <button id="btn-tree" class="btn btn-secondary btn-mini" type="button">Gambar silsilah</button>
+          <div class="row-actions">
+            <button id="btn-tree" class="btn btn-secondary btn-mini" type="button">Gambar silsilah</button>
+            <button id="btn-relate" class="btn btn-secondary btn-mini" type="button">Hitung hubungan</button>
+            <button id="btn-gedcom" class="btn btn-secondary btn-mini" type="button">Ekspor GEDCOM</button>
+          </div>
         </div>
         <p id="ppl-hint" class="muted ppl-hint hidden">
           Hanya RESEARCHER yang boleh mengubah individu (person:write). Anda dapat melihat silsilah saja.
@@ -208,6 +212,18 @@
           <div id="tree-root" class="tree-root"></div>
         </div>
         <div id="person-list" class="person-list"></div>
+
+        <div id="relate-wrap" class="glass relate-wrap hidden">
+          <h5 class="relate-title">Hubungan dua individu</h5>
+          <div class="relate-grid">
+            <select id="rel-a"><option value="">— pilih individu pertama —</option></select>
+            <select id="rel-b"><option value="">— pilih individu kedua —</option></select>
+            <button id="btn-relate-run" class="btn btn-primary btn-mini" type="button">Cari jalur nasab</button>
+          </div>
+          <div id="rel-out" class="rel-out"></div>
+        </div>
+
+        <div id="person-detail" class="glass person-detail hidden"></div>
 
         <div class="section-title">
           <h4>Anggota</h4>

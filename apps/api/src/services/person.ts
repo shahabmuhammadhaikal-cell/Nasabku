@@ -359,3 +359,275 @@ export async function deletePerson(
 
   return { deleted: true };
 }
+
+// ===== Garis leluhur & jalur hubungan =====
+
+export interface AncestorNode {
+  person: PersonDto;
+  depth: number; // 1 = ayah/ibu
+  via: "ayah" | "ibu";
+}
+
+/**
+ * Susun daftar seluruh leluhur satu orang: telusuri ayah dan ibu
+ * berulang (BFS per generasi) dari map individu aktif.
+ */
+export async function ancestorsOf(
+  db: Firestore,
+  workspaceId: string,
+  personId: string,
+): Promise<AncestorNode[]> {
+  const byId = await loadActivePersons(db, workspaceId);
+  if (!byId.has(personId)) {
+    // Leluhur orang yang tak ada/hapus: 404.
+    throw ApiError.notFound("Individu tidak ditemukan.");
+  }
+  const out: AncestorNode[] = [];
+  const visited = new Set<string>([personId]);
+  let frontier: Array<{ id: string; via: "ayah" | "ibu"; depth: number }> = [];
+  const start = byId.get(personId)!;
+  if (s(start.fatherId)) frontier.push({ id: String(start.fatherId), via: "ayah", depth: 1 });
+  if (s(start.motherId)) frontier.push({ id: String(start.motherId), via: "ibu", depth: 1 });
+  while (frontier.length > 0) {
+    const nextFrontier: typeof frontier = [];
+    for (const node of frontier) {
+      if (visited.has(node.id)) continue;
+      visited.add(node.id);
+      if (node.depth > 32) continue; // pengaman kedalaman
+      const data = byId.get(node.id);
+      if (!data) continue; // leluhur belum terekam: lewati
+      out.push({ person: personDto(node.id, data), depth: node.depth, via: node.via });
+      if (s(data.fatherId))
+        nextFrontier.push({ id: String(data.fatherId), via: "ayah", depth: node.depth + 1 });
+      if (s(data.motherId))
+        nextFrontier.push({ id: String(data.motherId), via: "ibu", depth: node.depth + 1 });
+    }
+    frontier = nextFrontier;
+  }
+  out.sort((a, b) => a.depth - b.depth || a.via.localeCompare(b.via, "id"));
+  return out;
+}
+
+export interface RelationEdge {
+  fromId: string;
+  toId: string;
+  label: string; // "ayah", "ibu", "pasangan", "orang tua" (arah anak→ortu dibalik)
+}
+
+export interface RelationPath {
+  connected: boolean;
+  gapGenerations: number | null; // jarak edges
+  path: Array<{ person: PersonDto; edge: RelationEdge | null }> | null;
+}
+
+/**
+ * Cari jalur hubungan terdekat dua individu pada graf tak berarah:
+ * sisi ayah/ibu (dua arah) dan pasangan. BFS, entri lenyap diabaikan.
+ */
+export async function relationBetween(
+  db: Firestore,
+  workspaceId: string,
+  aId: string,
+  bId: string,
+): Promise<RelationPath> {
+  const byId = await loadActivePersons(db, workspaceId);
+  if (!byId.has(aId) || !byId.has(bId)) {
+    throw ApiError.notFound("Salah satu individu tidak ditemukan.");
+  }
+  if (aId === bId) {
+    const p = personDto(aId, byId.get(aId)!);
+    return { connected: true, gapGenerations: 0, path: [{ person: p, edge: null }] };
+  }
+
+  // Sisi: [tetanggaId, labelArahAKeT]. Untuk orang p: p→ayah "ayah",
+  // ayah→p "orang tua"; pasangan dua arah "pasangan".
+  const neighbors = (id: string): Array<[string, string]> => {
+    const p = byId.get(id);
+    if (!p) return [];
+    const out: Array<[string, string]> = [];
+    if (s(p.fatherId)) out.push([String(p.fatherId), "ayah"]);
+    if (s(p.motherId)) out.push([String(p.motherId), "ibu"]);
+    if (s(p.spouseId)) out.push([String(p.spouseId), "pasangan"]);
+    for (const [childId, cd] of byId) {
+      if (cd.fatherId === id || cd.motherId === id) out.push([childId, "orang tua"]);
+      // Relasi pasangan bisa tersimpan satu arah; perlakukan dua arah.
+      if (cd.spouseId === id) out.push([childId, "pasangan"]);
+    }
+    return out;
+  };
+
+  const prev = new Map<string, { id: string; label: string }>();
+  const queue: string[] = [aId];
+  const seen = new Set<string>([aId]);
+  let found = false;
+  while (queue.length > 0 && !found) {
+    const cur = queue.shift()!;
+    for (const [nb, label] of neighbors(cur)) {
+      if (seen.has(nb)) continue;
+      seen.add(nb);
+      prev.set(nb, { id: cur, label });
+      if (nb === bId) {
+        found = true;
+        break;
+      }
+      queue.push(nb);
+    }
+  }
+
+  if (!found) {
+    return { connected: false, gapGenerations: null, path: null };
+  }
+
+  // Bangun jalur dari b mundur ke a; edge menyimpan arah tapi disusun
+  // maju (a → … → b) dengan label arah maju.
+  const trace: Array<{ id: string; label: string }> = [];
+  let curId = bId;
+  while (curId !== aId) {
+    const p = prev.get(curId)!;
+    trace.push({ id: curId, label: p.label });
+    curId = p.id;
+  }
+  trace.reverse();
+  const path: RelationPath["path"] = [{ person: personDto(aId, byId.get(aId)!), edge: null }];
+  let from = aId;
+  for (const step of trace) {
+    path.push({ person: personDto(step.id, byId.get(step.id)!), edge: { fromId: from, toId: step.id, label: step.label } });
+    from = step.id;
+  }
+  return { connected: true, gapGenerations: trace.length, path };
+}
+
+// ===== Sumber/bukti per individu =====
+
+export const SOURCE_KINDS = [
+  "AKTE_LAHIR",
+  "AKTE_NIKAH",
+  "KTP",
+  "WASIAT",
+  "KITAB_SILSILAH",
+  "WAWANCARA",
+  "DOKUMEN_LAIN",
+] as const;
+
+export interface SourceDto {
+  id: string;
+  kind: string;
+  title: string;
+  ref: string | null;
+  notes: string | null;
+  addedBy: string | null;
+  createdAt: string | null;
+}
+
+function sourceDto(id: string, data: Record<string, unknown>): SourceDto {
+  return {
+    id,
+    kind: String(data.kind ?? "DOKUMEN_LAIN"),
+    title: String(data.title ?? ""),
+    ref: typeof data.ref === "string" ? data.ref : null,
+    notes: typeof data.notes === "string" ? data.notes : null,
+    addedBy: typeof data.addedBy === "string" ? data.addedBy : null,
+    createdAt: toIso(data.createdAt),
+  };
+}
+
+export async function listSources(
+  db: Firestore,
+  workspaceId: string,
+  personId: string,
+): Promise<SourceDto[]> {
+  const pSnap = await db.doc(`workspaces/${workspaceId}/persons/${personId}`).get();
+  if (!pSnap.exists || String((pSnap.data() as PersonDocData).status) === "DELETED") {
+    throw ApiError.notFound("Individu tidak ditemukan.");
+  }
+  const snap = await db
+    .collection(`workspaces/${workspaceId}/persons/${personId}/sources`)
+    .get();
+  const items = snap.docs.map((d) => sourceDto(d.id, d.data() as Record<string, unknown>));
+  items.sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? "", "id"));
+  return items;
+}
+
+export interface CreateSourceInput {
+  workspaceId: string;
+  personId: string;
+  actorUid: string;
+  requestId: string;
+  data: { kind: (typeof SOURCE_KINDS)[number]; title: string; ref?: string | null; notes?: string | null };
+}
+
+export async function createSource(
+  db: Firestore,
+  input: CreateSourceInput,
+): Promise<SourceDto> {
+  const pRef = db.doc(`workspaces/${input.workspaceId}/persons/${input.personId}`);
+  const pSnap = await pRef.get();
+  if (!pSnap.exists || String((pSnap.data() as PersonDocData).status) === "DELETED") {
+    throw ApiError.notFound("Individu tidak ditemukan.");
+  }
+  const col = pRef.collection("sources");
+  const ref = col.doc();
+  const now = Timestamp.now();
+  const doc = {
+    kind: input.data.kind,
+    title: input.data.title,
+    ref: input.data.ref ?? null,
+    notes: input.data.notes ?? null,
+    addedBy: input.actorUid,
+    createdAt: now,
+  };
+  await db.runTransaction(async (tx) => {
+    tx.set(ref, doc);
+    tx.set(
+      db.collection("auditEvents").doc(),
+      buildAuditDoc({
+        action: "person.source_added" as AuditAction,
+        actorType: "user",
+        actorUserId: input.actorUid,
+        workspaceId: input.workspaceId,
+        resourceType: "person",
+        resourceId: input.personId,
+        requestId: input.requestId,
+        outcome: "success",
+        metadata: { sourceId: ref.id, kind: input.data.kind },
+      }),
+    );
+  });
+  return sourceDto(ref.id, doc);
+}
+
+export interface DeleteSourceInput {
+  workspaceId: string;
+  personId: string;
+  sourceId: string;
+  actorUid: string;
+  requestId: string;
+}
+
+export async function deleteSource(
+  db: Firestore,
+  input: DeleteSourceInput,
+): Promise<{ deleted: true }> {
+  const ref = db.doc(`workspaces/${input.workspaceId}/persons/${input.personId}/sources/${input.sourceId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw ApiError.notFound("Sumber tidak ditemukan.");
+  const data = snap.data() as Record<string, unknown>;
+  await db.runTransaction(async (tx) => {
+    tx.delete(ref);
+    tx.set(
+      db.collection("auditEvents").doc(),
+      buildAuditDoc({
+        action: "person.source_removed" as AuditAction,
+        actorType: "user",
+        actorUserId: input.actorUid,
+        workspaceId: input.workspaceId,
+        resourceType: "person",
+        resourceId: input.personId,
+        requestId: input.requestId,
+        outcome: "success",
+        metadata: { sourceId: input.sourceId, kind: typeof data.kind === "string" ? data.kind : null },
+      }),
+    );
+  });
+  return { deleted: true };
+}

@@ -302,18 +302,184 @@ export function renderPersons(persons, handle) {
     if (pasangan) bagian.push(`Pasangan: ${pasangan}`);
     rel.textContent = bagian.length ? bagian.join(" · ") : "Relasi belum diisi";
 
+    if (card.querySelector(".person-main")) {
+      card.querySelector(".person-main").style.cursor = "pointer";
+      card.querySelector(".person-main").addEventListener("click", () => handle.onOpen?.(p));
+    }
     if (handle.canWrite) {
       const tombolSun = el(`<button class="btn btn-secondary btn-mini" type="button">Sunting</button>`);
       tombolSun.addEventListener("click", () => handle.onEdit(p));
       const tombolHapus = el(`<button class="btn btn-danger btn-mini" type="button">Hapus</button>`);
       tombolHapus.addEventListener("click", () => handle.onDelete(p));
-      card.querySelector(".person-actions").append(tombolSun, tombolHapus);
+      const tombolDetail = el(`<button class="btn btn-secondary btn-mini" type="button">Detail</button>`);
+      tombolDetail.addEventListener("click", () => handle.onOpen?.(p));
+      card.querySelector(".person-actions").append(tombolSun, tombolHapus, tombolDetail);
+    } else if (handle.onOpen) {
+      const tombolDetail = el(`<button class="btn btn-secondary btn-mini" type="button">Detail</button>`);
+      tombolDetail.addEventListener("click", () => handle.onOpen(p));
+      card.querySelector(".person-actions").append(tombolDetail);
     }
     wrap.appendChild(card);
   }
 }
 
-/** Mengembalikan jawab untuk mengisi 1 kartu pohon. */
+
+/** Label jenis sumber/bukti versi manusiawi. */
+export const SOURCE_KIND_LABELS = {
+  AKTE_LAHIR: "Akte lahir",
+  AKTE_NIKAH: "Akte nikah",
+  KTP: "KTP",
+  WASIAT: "Wasiat/surat waris",
+  KITAB_SILSILAH: "Kitab silsilah",
+  WAWANCARA: "Wawancara",
+  DOKUMEN_LAIN: "Dokumen lain",
+};
+
+/**
+ * Panel detail satu individu: field lengkap, garis leluhur, dan
+ * sumber/bukti (bisa tambah/hapus bila bolehTulis).
+ * handle: { canWrite, onAddSource(data), onDeleteSource(id), onClose() }.
+ */
+export function renderPersonDetail(person, leluhur, sumber, handle) {
+  const wrap = q("person-detail");
+  wrap.innerHTML = "";
+  const kindLabel = (k) => SOURCE_KIND_LABELS[k] ?? k;
+
+  const header = el(
+    `<div class="pd-head">
+      <h4 class="pd-name"></h4>
+      <button class="btn btn-ghost btn-mini" type="button">Tutup ✕</button>
+    </div>`,
+  );
+  header.querySelector(".pd-name").textContent = person.name;
+  header.querySelector("button").addEventListener("click", handle.onClose);
+
+  const info = el(
+    `<div class="pd-info">
+      <div class="pd-grid">
+        <div><span class="pd-k">Jenis kelamin</span><span class="pd-v pd-gender"></span></div>
+        <div><span class="pd-k">Lahir</span><span class="pd-v pd-birth"></span></div>
+        <div><span class="pd-k">Wafat</span><span class="pd-v pd-death"></span></div>
+        <div class="pd-wide"><span class="pd-k">Catatan</span><span class="pd-v pd-notes"></span></div>
+      </div>
+      <p class="pd-rel muted"></p>
+    </div>`,
+  );
+  info.querySelector(".pd-gender").textContent =
+    person.gender === "L" ? "Laki-laki" : person.gender === "P" ? "Perempuan" : "—";
+  info.querySelector(".pd-birth").textContent =
+    [person.birthDate, person.birthPlace].filter(Boolean).join(" · ") || "—";
+  info.querySelector(".pd-death").textContent =
+    [person.deathDate, person.deathPlace].filter(Boolean).join(" · ") || "—";
+  info.querySelector(".pd-notes").textContent = person.notes || "—";
+
+  const leluhurSec = el(`<div class="pd-sec"><h5>Garis leluhur</h5><ul class="pd-anc"></ul></div>`);
+  const ul = leluhurSec.querySelector("ul");
+  if (leluhur.length === 0) {
+    ul.appendChild(el(`<li class="muted">Belum ada leluhur yang terhubung.</li>`));
+  }
+  for (const a of leluhur) {
+    ul.appendChild(
+      el(`<li><b class="pd-anc-name"></b><span class="muted pd-anc-meta"></span></li>`),
+    );
+    const li = ul.lastElementChild;
+    li.querySelector(".pd-anc-name").textContent = `+ ${a.person.name}`;
+    li.querySelector(".pd-anc-meta").textContent = ` — generasi ${a.depth}, jalur ${a.via}`;
+  }
+
+  const srcSec = el(`<div class="pd-sec"><h5>Sumber & bukti</h5><ul class="pd-src"></ul></div>`);
+  const ulSrc = srcSec.querySelector("ul");
+  if (sumber.length === 0) {
+    ulSrc.appendChild(el(`<li class="muted">Belum ada bukti yang dicatat.</li>`));
+  }
+  for (const s of sumber) {
+    const li = el(
+      `<li class="pd-src-item">
+        <div class="pd-src-main">
+          <b class="pd-src-title"></b>
+          <span class="badge badge-soft pd-src-kind"></span>
+          <a class="pd-src-ref muted" target="_blank" rel="noopener noreferrer"></a>
+          <span class="muted pd-src-notes"></span>
+        </div>
+      </li>`,
+    );
+    li.querySelector(".pd-src-title").textContent = s.title;
+    li.querySelector(".pd-src-kind").textContent = kindLabel(s.kind);
+    if (s.ref) {
+      li.querySelector(".pd-src-ref").href = s.ref;
+      li.querySelector(".pd-src-ref").textContent = s.ref.length > 48 ? `${s.ref.slice(0, 45)}…` : s.ref;
+    }
+    li.querySelector(".pd-src-notes").textContent = s.notes ?? "";
+    if (handle.canWrite) {
+      const hapus = el(`<button class="btn btn-danger btn-mini" type="button">Hapus</button>`);
+      hapus.addEventListener("click", () => handle.onDeleteSource(s));
+      li.appendChild(hapus);
+    }
+    ulSrc.appendChild(li);
+  }
+  if (handle.canWrite) {
+    const form = el(
+      `<form class="pd-src-form row-actions">
+        <select class="pd-new-kind"></select>
+        <input class="pd-new-title" type="text" required minlength="2" maxlength="160" placeholder="Judul bukti…" />
+        <input class="pd-new-ref" type="text" maxlength="400" placeholder="Tautan atau rujukan (opsional)" />
+        <input class="pd-new-notes" type="text" maxlength="1000" placeholder="Catatan singkat (opsional)" /> 
+        <button class="btn btn-primary btn-mini" type="submit">+ Tambah bukti</button>
+      </form>`,
+    );
+    const selKind = form.querySelector("select");
+    for (const [value, label] of Object.entries(SOURCE_KIND_LABELS)) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      selKind.appendChild(opt);
+    }
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      handle.onAddSource({
+        kind: selKind.value,
+        title: form.querySelector(".pd-new-title").value.trim(),
+        ref: form.querySelector(".pd-new-ref").value.trim(),
+        notes: form.querySelector(".pd-new-notes").value.trim(),
+      });
+      form.reset();
+    });
+    srcSec.appendChild(form);
+  }
+
+  wrap.append(header, info, leluhurSec, srcSec);
+  wrap.classList.remove("hidden");
+  wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/** Alat hitung hubungan dua individu di panel relate. */
+export function renderRelation(relation) {
+  const out = q("rel-out");
+  out.innerHTML = "";
+  if (!relation?.connected) {
+    out.appendChild(
+      el(
+        `<p class="muted rel-not">Dua individu ini belum terhubung pada graf silsilah (jalur belum ada lewat ayah/ibu/pasangan).</p>`,
+      ),
+    );
+    return;
+  }
+  if (relation.path.length === 1) {
+    out.appendChild(el(`<p class="rel-same muted">Individu yang sama.</p>`));
+    return;
+  }
+  const chain = el(`<p class="rel-chain"></p>`);
+  const frag = [];
+  for (const step of relation.path) {
+    frag.push(`<b>${step.person.name}</b>`);
+    if (step.edge) frag.push(`<span class="rel-arrow">—${step.edge.label}→</span>`);
+  }
+  chain.innerHTML = frag.join(" ");
+  const feliz = el(
+    `<p class="muted rel-meta">Jarak jalur terdekat: ${relation.gapGenerations} langkah hubungan.</p>`,
+  );
+  out.append(chain, feliz);
+}
 function pohonBox(p) {
   const box = el(
     `<div class="tree-person">

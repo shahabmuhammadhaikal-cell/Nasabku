@@ -8,6 +8,7 @@ import {
   createWorkspaceSchema,
   personCreateSchema,
   personPatchSchema,
+  sourceCreateSchema,
   updateWorkspaceSchema,
 } from "../schemas";
 import {
@@ -21,14 +22,19 @@ import {
   updateWorkspace,
 } from "../services/workspace";
 import {
+  ancestorsOf,
   createPerson,
+  createSource,
   deletePerson,
+  deleteSource,
   listPersons,
+  listSources,
+  relationBetween,
   updatePerson,
 } from "../services/person";
 import type { ApiDeps } from "../types/context";
 
-function paramId(value: string | string[] | undefined): string {
+function paramId(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
@@ -180,6 +186,85 @@ export function workspacesRouter(deps: ApiDeps): Router {
       await deletePerson(db, {
         workspaceId: req.workspace?.id ?? "",
         personId: paramId(req.params.personId),
+        actorUid: req.auth?.uid ?? "",
+        requestId: rid,
+      });
+      res.status(200).json(successEnvelope({ deleted: true }, rid));
+    },
+  );
+
+  router.get(
+    "/:workspaceId/persons/:personId/ancestors",
+    requireWorkspacePermission(deps, "person:read"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const items = await ancestorsOf(
+        db,
+        req.workspace?.id ?? "",
+        paramId(req.params.personId),
+      );
+      res.status(200).json(successEnvelope({ items }, rid));
+    },
+  );
+
+  router.get(
+    "/:workspaceId/person-relations",
+    requireWorkspacePermission(deps, "person:read"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const a = paramId(req.query.a);
+      const b = paramId(req.query.b);
+      const pattern = /^[A-Za-z0-9_-]{4,64}$/;
+      if (!pattern.test(a) || !pattern.test(b)) {
+        throw ApiError.validation("Parameter a dan b wajib ID individu yang valid.", [
+          { field: "a", reason: "INVALID", },
+        ]);
+      }
+      const relation = await relationBetween(db, req.workspace?.id ?? "", a, b);
+      res.status(200).json(successEnvelope({ relation }, rid));
+    },
+  );
+
+  router.get(
+    "/:workspaceId/persons/:personId/sources",
+    requireWorkspacePermission(deps, "person:read"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const items = await listSources(
+        db,
+        req.workspace?.id ?? "",
+        paramId(req.params.personId),
+      );
+      res.status(200).json(successEnvelope({ items }, rid));
+    },
+  );
+
+  router.post(
+    "/:workspaceId/persons/:personId/sources",
+    requireWorkspacePermission(deps, "person:write"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      const body = sourceCreateSchema.parse(req.body);
+      const source = await createSource(db, {
+        workspaceId: req.workspace?.id ?? "",
+        personId: paramId(req.params.personId),
+        actorUid: req.auth?.uid ?? "",
+        requestId: rid,
+        data: body,
+      });
+      res.status(201).json(successEnvelope({ source }, rid));
+    },
+  );
+
+  router.delete(
+    "/:workspaceId/persons/:personId/sources/:sourceId",
+    requireWorkspacePermission(deps, "person:write"),
+    async (req, res) => {
+      const rid = req.requestId ?? "req_unknown";
+      await deleteSource(db, {
+        workspaceId: req.workspace?.id ?? "",
+        personId: paramId(req.params.personId),
+        sourceId: paramId(req.params.sourceId),
         actorUid: req.auth?.uid ?? "",
         requestId: rid,
       });

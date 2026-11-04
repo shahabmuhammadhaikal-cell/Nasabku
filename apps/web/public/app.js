@@ -1,9 +1,37 @@
 import { apiFetch } from "./api.js";
 import { firebaseReady, signOutFirebase, signIn, register } from "./firebase.js";
-import { renderActivity, renderDashboard, renderDetail, renderPersons, renderStats, renderTree, toast } from "./ui.js";
+import {
+  renderActivity,
+  renderDashboard,
+  renderDetail,
+  renderPersons,
+  renderPersonDetail,
+  renderRelation,
+  renderStats,
+  renderTree,
+  toast,
+} from "./ui.js";
 
 /** Satu-satunya titik navigasi SPA sederhana. */
-let state = { user: null, memberships: [], detailId: null, slug: "", persons: [], editPersonId: null };
+let state = { user: null, memberships: [], detailId: null, slug: "", persons: [], editPersonId: null, detailPersonId: null };
+
+/** Peta kode galat Firebase Auth → pesan manusiawi berbahasa Indonesia. */
+const PESAN_AUTH = {
+  "auth/email-already-in-use": "Email ini sudah terdaftar. Gunakan tombol Masuk di bawah dengan sandi Anda.",
+  "auth/invalid-email": "Format email tidak sah. Periksa kembali penulisannya.",
+  "auth/weak-password": "Sandi terlalu lemah. Gunakan minimal 8 karakter campuran huruf, angka, dan simbol.",
+  "auth/operation-not-allowed": "Pendaftaran lewat surel/sandi belum diaktifkan di Firebase Console.",
+  "auth/unauthorized-domain": "Domain halaman ini belum ada di daftar Authorized domains Firebase.",
+  "auth/user-not-found": "Tidak ada akun dengan email tersebut.",
+  "auth/wrong-password": "Sandi salah untuk email ini.",
+  "auth/invalid-credential": "Email atau sandi salah.",
+  "auth/too-many-requests": "Terlalu banyak percobaan. Tunggu sejenak lalu coba lagi.",
+  "auth/network-request-failed": "Jaringan bermasalah. Periksa koneksi internet Anda.",
+};
+
+function pesanAuth(err) {
+  return PESAN_AUTH[err?.code] || err?.message || "Terjadi galat tak terduga.";
+}
 
 async function bootstrap() {
   // Sesi kue (cookie) mungkin masih sah dari kunjungan lalu:
@@ -118,9 +146,16 @@ export async function openDetail(workspaceId) {
   const tbTree = document.getElementById("btn-tree");
   tbTree.textContent = "Gambar silsilah";
   document.getElementById("tree-wrap").classList.add("hidden");
+  document.getElementById("person-detail").classList.add("hidden");
+  state.detailPersonId = null;
+  document.getElementById("relate-wrap").classList.add("hidden");
+  document.getElementById("rel-out").innerHTML = "";
+  document.getElementById("btn-relate").textContent = "Hitung hubungan";
+  isiSelectRelate();
   renderPersons(state.persons, {
     canWrite: bolehTulis,
     onEdit: (person) => bukaFormPerson(person),
+    onOpen: (person) => void bukaDetailIndividu(person),
     onDelete: async (person) => {
       const yakin = window.confirm(
         `Hapus individu "${person.name}"? Relasi yang merujuk kepadanya akan dibersihkan.`,
@@ -154,7 +189,7 @@ document.getElementById("form-auth").addEventListener("submit", async (e) => {
     state.memberships = data.memberships ?? [];
     enterApp();
   } catch (err) {
-    document.getElementById("auth-error").textContent = err?.message || "Gagal masuk.";
+    document.getElementById("auth-error").textContent = pesanAuth(err);
     document.getElementById("auth-error").classList.remove("hidden");
   } finally {
     btn.disabled = false;
@@ -169,7 +204,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
     toast("Akun dibuat. Silakan masuk.");
     document.getElementById("btn-login").click();
   } catch (err) {
-    document.getElementById("auth-error").textContent = err?.message || "Gagal mendaftar.";
+    document.getElementById("auth-error").textContent = pesanAuth(err);
     document.getElementById("auth-error").classList.remove("hidden");
   }
 });
@@ -326,6 +361,189 @@ qid("form-person").addEventListener("submit", async (e) => {
     void openDetail(wid);
   } catch (err) {
     toast(err?.message || "Gagal menyimpan individu.", "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ===== Detail individu, sumber/bukti, hubungan nasab, GEDCOM =====
+
+/** Isi dropdown pencari hubungan dari daftar individu saat ini. */
+function isiSelectRelate() {
+  for (const [idx, id] of ["rel-a", "rel-b"].entries()) {
+    const sel = qid(id);
+    sel.innerHTML = "";
+    const def = document.createElement("option");
+    def.value = "";
+    def.textContent = idx === 0 ? "— pilih individu pertama —" : "— pilih individu kedua —";
+    sel.appendChild(def);
+    for (const p of state.persons) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+/** Buka panel detail satu individu: leluhur + sumber diambil dari API. */
+async function bukaDetailIndividu(person) {
+  const wid = state.detail?.id;
+  if (!wid) return;
+  state.detailPersonId = person.id;
+  const bolehTulis = state.detail?.role === "RESEARCHER";
+  const wrap = qid("person-detail");
+  wrap.innerHTML = "";
+  wrap.classList.remove("hidden");
+  wrap.innerHTML = "<p class='muted'>Memuat detail…</p>";
+  try {
+    const [anc, src] = await Promise.all([
+      apiFetch(`/api/v1/workspaces/${wid}/persons/${person.id}/ancestors`).catch(() => ({ items: [] })),
+      apiFetch(`/api/v1/workspaces/${wid}/persons/${person.id}/sources`).catch(() => ({ items: [] })),
+    ]);
+    if (state.detailPersonId !== person.id) return; // sudah diganti orang lain
+    renderPersonDetail(person, anc.items ?? [], src.items ?? [], {
+      canWrite: bolehTulis,
+      onClose: () => {
+        wrap.classList.add("hidden");
+        state.detailPersonId = null;
+      },
+      onAddSource: async (data) => {
+        try {
+          await apiFetch(`/api/v1/workspaces/${wid}/persons/${person.id}/sources`, {
+            method: "POST",
+            body: data,
+          });
+          toast("Bukti ditambahkan.");
+          void bukaDetailIndividu(person);
+        } catch (err) {
+          toast(err?.message || "Gagal menambah bukti.", "err");
+        }
+      },
+      onDeleteSource: async (s) => {
+        if (!window.confirm(`Hapus bukti "${s.title}"?`)) return;
+        try {
+          await apiFetch(`/api/v1/workspaces/${wid}/persons/${person.id}/sources/${s.id}`, {
+            method: "DELETE",
+          });
+          toast("Bukti dihapus.");
+          void bukaDetailIndividu(person);
+        } catch (err) {
+          toast(err?.message || "Gagal menghapus bukti.", "err");
+        }
+      },
+    });
+  } catch (err) {
+    toast(err?.message || "Gagal memuat detail individu.", "err");
+  }
+}
+
+/** Unduh file dari teks via Blob. */
+function kirimUnduh(namaFile, isi, tipe) {
+  const blob = new window.Blob([isi], { type: tipe });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = namaFile;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Bangun GEDCOM 5.5.1 minimal dari daftar individu aktif. */
+function susunGedcom() {
+  const byId = new Map(state.persons.map((p) => [p.id, p]));
+  const kode = new Map(state.persons.map((p, i) => [p.id, `@I${i + 1}@`]));
+
+  // Keluarga = pasangan orang tua (kunci "ayah|ibu") termasuk pernikahan
+  // tanpa anak. Relasi pasangan satu arah pun dinormalisasi di sini.
+  const keluarga = new Map();
+  let famN = 0;
+  const keluargaBaru = (ayah, ibu) => {
+    const kunci = `${ayah ?? "-"}|${ibu ?? "-"}`;
+    if (!keluarga.has(kunci)) {
+      famN += 1;
+      keluarga.set(kunci, { id: `@F${famN}@`, ayah, ibu, anak: [] });
+    }
+    return keluarga.get(kunci);
+  };
+  for (const p of state.persons) {
+    const ayah = p.fatherId && byId.has(p.fatherId) ? p.fatherId : null;
+    const ibu = p.motherId && byId.has(p.motherId) ? p.motherId : null;
+    if (ayah || ibu) keluargaBaru(ayah, ibu).anak.push(p.id);
+    const pas = p.spouseId && byId.has(p.spouseId) ? p.spouseId : null;
+    if (pas && p.id < pas) {
+      const a = p.gender === "P" ? pas : p.id;
+      const i = p.gender === "P" ? p.id : pas;
+      keluargaBaru(a, i);
+    }
+  }
+
+  const baris = ["0 HEAD", "1 SOUR NASABKU", "2 NAME Nasabku", "2 VERS 1.0", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8"];
+  state.persons.forEach((p, i) => {
+    baris.push(`0 @I${i + 1}@ INDI`);
+    baris.push(`1 NAME ${p.name.replace(/\//g, "?")} /`);
+    baris.push(`1 SEX ${p.gender === "L" ? "M" : p.gender === "P" ? "F" : "U"}`);
+    if (p.birthDate || p.birthPlace) {
+      baris.push("1 BIRT");
+      if (p.birthDate) baris.push(`2 DATE ${p.birthDate}`);
+      if (p.birthPlace) baris.push(`2 PLAC ${p.birthPlace}`);
+    }
+    if (p.deathDate || p.deathPlace) {
+      baris.push("1 DEAT");
+      if (p.deathDate) baris.push(`2 DATE ${p.deathDate}`);
+      if (p.deathPlace) baris.push(`2 PLAC ${p.deathPlace}`);
+    }
+    for (const fam of keluarga.values()) {
+      if (fam.ayah === p.id || fam.ibu === p.id) baris.push(`1 FAMS ${fam.id}`);
+      if (fam.anak.includes(p.id)) baris.push(`1 FAMC ${fam.id}`);
+    }
+  });
+  for (const fam of keluarga.values()) {
+    baris.push(`0 ${fam.id} FAM`);
+    if (fam.ayah) baris.push(`1 HUSB ${kode.get(fam.ayah)}`);
+    if (fam.ibu) baris.push(`1 WIFE ${kode.get(fam.ibu)}`);
+    for (const an of fam.anak) baris.push(`1 CHIL ${kode.get(an)}`);
+  }
+  baris.push("0 TRLR");
+  return `${baris.join("\n")}\n`;
+}
+
+qid("btn-gedcom").addEventListener("click", () => {
+  if (!state.detail?.id) return;
+  if (state.persons.length === 0) {
+    toast("Belum ada individu untuk diekspor.", "err");
+    return;
+  }
+  kirimUnduh(`${state.slug || "nasabku"}.ged`, susunGedcom(), "text/plain;charset=utf-8");
+  toast(`Ekspor GEDCOM ${state.persons.length} individu berhasil diunduh.`);
+});
+
+qid("btn-relate").addEventListener("click", () => {
+  const tersembunyi = qid("relate-wrap").classList.toggle("hidden");
+  qid("btn-relate").textContent = tersembunyi ? "Hitung hubungan" : "Tutup pencari hubungan";
+  if (!tersembunyi) qid("rel-a").focus();
+});
+
+qid("btn-relate-run").addEventListener("click", async () => {
+  const wid = state.detail?.id;
+  if (!wid) return;
+  const a = qid("rel-a").value;
+  const b = qid("rel-b").value;
+  if (!a || !b) {
+    toast("Pilih dua individu dulu.", "err");
+    return;
+  }
+  const btn = qid("btn-relate-run");
+  btn.disabled = true;
+  try {
+    const rel = await apiFetch(
+      `/api/v1/workspaces/${wid}/person-relations?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`,
+    );
+    renderRelation(rel.relation);
+  } catch (err) {
+    toast(err?.message || "Gagal mencari jalur hubungan.", "err");
   } finally {
     btn.disabled = false;
   }

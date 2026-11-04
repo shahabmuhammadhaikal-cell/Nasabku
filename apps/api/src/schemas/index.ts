@@ -1,6 +1,7 @@
 import { AUDIT_ACTIONS, ROLES } from "@nasabku/shared";
 import { z } from "zod";
 import { SLUG_PATTERN } from "../lib/slug";
+import { SOURCE_KINDS } from "../services/person";
 
 export const loginSchema = z.object({
   idToken: z.string().min(16).max(40000),
@@ -100,6 +101,13 @@ export const personPatchSchema = z
       (!v.motherId || v.motherId !== v.spouseId),
     { message: "INVALID_RELATION" },
   );
+
+export const sourceCreateSchema = z.object({
+  kind: z.enum(SOURCE_KINDS),
+  title: z.string().trim().min(2).max(160),
+  ref: optionalText(400),
+  notes: optionalText(1000),
+});
 
 export const auditQuerySchema = z.object({
   workspaceId: z
