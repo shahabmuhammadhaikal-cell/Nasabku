@@ -25,11 +25,24 @@ export interface ErrorDetail {
   reason: string;
 }
 
+/**
+ * Diagnostik terbatas untuk galat 500: tahap tempat kegagalan bermula
+ * dan kode basis data (mis. permission-denied). Hanya dimasukkan ke
+ * respons bila SHOW_DB_ERRORS aktif — sengaja terbatas pada kode, bukan
+ * pesan mentah, agar tidak membocorkan detail internal yang sensitif.
+ */
+export interface ApiErrorDebug {
+  stage?: string;
+  dbCode?: string;
+}
+
 export interface ErrorEnvelope {
   error: {
     code: ErrorCode;
     message: string;
     details?: ErrorDetail[];
+    /** Hanya ada bila SHOW_DB_ERRORS aktif dan galatnya 500. */
+    debug?: ApiErrorDebug;
     requestId: string;
   };
 }
@@ -43,6 +56,8 @@ export class ApiError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly details?: ErrorDetail[];
+  /** Diagnostik tahap/kode database — hanya dikirim bila SHOW_DB_ERRORS aktif. */
+  debug?: ApiErrorDebug;
 
   constructor(code: ErrorCode, status: number, message: string, details?: ErrorDetail[]) {
     super(message);
@@ -91,12 +106,14 @@ export function errorEnvelope(
   message: string,
   requestId: string,
   details?: ErrorDetail[],
+  debug?: ApiErrorDebug,
 ): ErrorEnvelope {
   return {
     error: {
       code,
       message,
       ...(details && details.length > 0 ? { details } : {}),
+      ...(debug ? { debug } : {}),
       requestId,
     },
   };

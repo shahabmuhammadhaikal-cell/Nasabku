@@ -86,7 +86,7 @@ export function createApp(deps: ApiDeps): Express {
   });
 
   app.use((_req, _res, next) => next(ApiError.notFound("Endpoint tidak ditemukan.")));
-  app.use(errorHandler(logger));
+  app.use(errorHandler(logger, env.SHOW_DB_ERRORS));
 
   return app;
 }

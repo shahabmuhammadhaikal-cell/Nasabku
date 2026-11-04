@@ -8,8 +8,12 @@ import { zodIssuesToDetails } from "../lib/validation";
  * Penangan kesalahan terpusat — semua respons gagal memakai envelope
  * { error: { code, message, details?, requestId } }.
  * Pesan 500 selalu generik (tanpa detail internal/stack).
+ *
+ * Bila showDbErrors aktif, ApiError 500 yang membawa diagnostik
+ * (stage/dbCode dari pustaka tahap) ikut dikirim ke klien — penyebab
+ * operasional Firestore terbaca tanpa membuka log host.
  */
-export function errorHandler(logger: Logger) {
+export function errorHandler(logger: Logger, showDbErrors = false) {
   return (err: unknown, req: Request, res: Response, next: NextFunction): void => {
     if (res.headersSent) {
       next(err);
@@ -18,14 +22,18 @@ export function errorHandler(logger: Logger) {
     const requestId = req.requestId ?? "req_unknown";
 
     if (err instanceof ApiError) {
+      const debug = showDbErrors && err.status >= 500 ? err.debug : undefined;
       if (err.status >= 500) {
-        logger.error({ code: err.code, status: err.status, requestId }, "api error");
+        logger.error(
+          { code: err.code, status: err.status, requestId, stage: err.debug?.stage },
+          "api error",
+        );
       } else {
         logger.warn({ code: err.code, status: err.status, requestId }, "api error");
       }
       res
         .status(err.status)
-        .json(errorEnvelope(err.code, err.message, requestId, err.details));
+        .json(errorEnvelope(err.code, err.message, requestId, err.details, debug));
       return;
     }
 

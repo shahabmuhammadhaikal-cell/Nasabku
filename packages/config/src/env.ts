@@ -49,6 +49,11 @@ const EnvSchema = z
     // Isi JSON service account penuh ( production, non-GCP host seperti Render).
     // Bila kosong, Admin SDK memakai Application Default Credentials.
     FIREBASE_SERVICE_ACCOUNT_JSON: z.string().default(""),
+    // Bila aktif, respons 500 menyertakan debug { stage, dbCode } —
+    // diagnosa operasi Firestore tanpa harus membuka log host.
+    // Set "false" setelah penyebab diketahui bila tidak ingin
+    // diagnostik tampak di API.
+    SHOW_DB_ERRORS: boolFromEnv(true),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.USE_FIREBASE_EMULATORS) {

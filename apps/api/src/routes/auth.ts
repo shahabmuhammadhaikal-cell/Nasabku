@@ -1,4 +1,5 @@
 import { ApiError, successEnvelope } from "@nasabku/shared";
+import type { Response } from "express";
 import { Router } from "express";
 import { createRateLimiter } from "../middleware/rateLimit";
 import { requireAuth } from "../middleware/auth";
@@ -6,24 +7,23 @@ import { createSession, destroySession } from "../services/session";
 import { listUserMemberships, upsertUserOnLogin } from "../services/user";
 import { recordAudit } from "../services/audit";
 import { loginSchema, registerSchema } from "../schemas";
+import { denganTahap } from "../lib/tahap";
 import type { ApiDeps } from "../types/context";
 
 /**
- * Autentikasi: pertukaran ID token Firebase Auth → cookie sesi
- * HttpOnly SameSite=Lax (token acak tersimpan ter-hash di Firestore).
- * Endpoint reset kata sandi memerlukan penyedia email transaksional
- * (keputusan produk) dan dijadwalkan pada fase berikutnya.
+ * Autentikasi v2 — dibangun ulang dengan kebijakan:
+ * 1. Setelah identitas valid (dibuat lewat /register atau terverifikasi
+ *    lewat idToken di /login), SEMUA operasi Firestore berbalut tahap
+ *    bernama (denganTahap). Kegagalan operasional menghasilkan 500
+ *    generik dengan debug { stage, dbCode } bila SHOW_DB_ERRORS aktif.
+ * 2. Identitas jahat tidak pernah menerima 500:
+ *    - akun sudah ada → 409, kebijakan lemah → 400;
+ *    - idToken sah-sah saja / jalur api gagal → 401.
+ * 3. Sesi tak berubah: token acak yang di-hash di Firestore, cookie
+ *    HttpOnly SameSite=Lax, TTL di bawah kendali server.
  */
 export function authRouter(deps: ApiDeps): Router {
   const { env, db, firebaseAuth, logger } = deps;
-
-  // Bungkus galat tahap tulisFirestore dengan label tahap dan galat
-  // penuh di log: kode Firestore (mis. PERMISSION_DENIED) langsung
-  // terbaca di log Render tanpa menurunkan detail ke respons klien.
-  function lemparTahap(label: string, rid: string, err: unknown): ApiError {
-    logger.error({ stage: label, err, requestId: rid }, "tulis auth gagal");
-    return ApiError.internal("Operasi autentikasi gagal. Coba lagi nanti.");
-  }
 
   const router = Router();
   const loginLimiter = createRateLimiter({
@@ -32,13 +32,23 @@ export function authRouter(deps: ApiDeps): Router {
     keyPrefix: "auth",
   });
 
-  // Pendaftaran langsung dari backend: akun dibuat di Firebase Auth
-  // via Admin SDK, tanpa perlu SDK klien. Sesi cookie diterbitkan di
-  // tempat sama sehingga pengguna langsung masuk setelah daftar.
+  /** Terbit sesi: cookie HttpOnly + masa kedaluwarsa yang sama di FE. */
+  function terbitkanSesi(res: Response, token: string, expiresAt: number): void {
+    res.cookie(env.SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(expiresAt),
+    });
+  }
+
+  // ── Pendaftaran langsung via backend (tanpa SDK klien) ────────────
   router.post("/register", loginLimiter, async (req, res) => {
     const rid = req.requestId ?? "req_unknown";
     const { email, password } = registerSchema.parse(req.body);
 
+    // Tahap 1: buat akun Firebase Auth (Admin SDK).
     let uid: string;
     try {
       const akun = await firebaseAuth.createUser({
@@ -63,25 +73,29 @@ export function authRouter(deps: ApiDeps): Router {
       if (kode === "auth/email-already-exists" || kode === "auth/email-already-in-use") {
         throw ApiError.conflict("Email sudah terdaftar. Gunakan tombol Masuk.");
       }
-      if (kode === "auth/weak-password" || kode === "auth/invalid-password" || kode === "auth/invalid-email") {
+      if (
+        kode === "auth/weak-password" ||
+        kode === "auth/invalid-password" ||
+        kode === "auth/invalid-email"
+      ) {
         throw ApiError.validation("Email atau sandi tidak memenuhi kebijakan.", [
           { field: "password", reason: "AUTH_RULE" },
         ]);
       }
-      logger.warn({ err: String(err), requestId: rid }, "pembuatan akun gagal");
+      logger.warn({ err: String(err), requestId: rid }, "tahap register_create_auth_gagal");
       throw ApiError.internal("Pendaftaran gagal. Coba lagi nanti.");
     }
 
-    let user: Awaited<ReturnType<typeof upsertUserOnLogin>>;
-    try {
-      user = await upsertUserOnLogin(
-        db,
-        { uid, email, name: null, emailVerified: false },
-        rid,
-      );
-    } catch (err) {
-      throw lemparTahap("register_upsert_user", rid, err);
-    }
+    // Tahap 2..4: penyimpanan pengguna, terbit sesi, daftar keanggotaan.
+    const profil = { uid, email, name: null, emailVerified: false };
+    const user = await denganTahap(
+      logger,
+      rid,
+      "register_upsert_user",
+      () => upsertUserOnLogin(db, profil, rid),
+      "Pendaftaran gagal saat menyimpan pengguna. Coba lagi nanti.",
+    );
+
     await recordAudit(db, {
       action: "user.registered",
       actorType: "user",
@@ -89,31 +103,30 @@ export function authRouter(deps: ApiDeps): Router {
       resourceId: uid,
       requestId: rid,
       outcome: "success",
-    }).catch(() => {});
-
-    let tokenJanji: { token: string; expiresAt: number };
-    try {
-      tokenJanji = await createSession(db, uid, env.SESSION_TTL_HOURS * 3600 * 1000);
-    } catch (err) {
-      throw lemparTahap("register_create_session", rid, err);
-    }
-    const { token, expiresAt } = tokenJanji;
-    res.cookie(env.SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      expires: new Date(expiresAt),
+    }).catch((auditErr) => {
+      logger.warn({ err: auditErr, requestId: rid }, "audit register gagal tersimpan");
     });
-    let memberships: Awaited<ReturnType<typeof listUserMemberships>>;
-    try {
-      memberships = await listUserMemberships(db, uid);
-    } catch (err) {
-      throw lemparTahap("register_list_memberships", rid, err);
-    }
+
+    const sesi = await denganTahap(
+      logger,
+      rid,
+      "register_create_session",
+      () => createSession(db, uid, env.SESSION_TTL_HOURS * 3600 * 1000),
+      "Pendaftaran gagal saat menerbitkan sesi. Coba lagi nanti.",
+    );
+    terbitkanSesi(res, sesi.token, sesi.expiresAt);
+
+    const memberships = await denganTahap(
+      logger,
+      rid,
+      "register_list_memberships",
+      () => listUserMemberships(db, uid),
+      "Pendaftaran gagal saat membaca keanggotaan. Coba lagi nanti.",
+    );
     res.status(201).json(successEnvelope({ user, memberships }, rid));
   });
 
+  // ── Masuk: idToken dari peramban dikirim ke sertifikat publik ─────
   router.post("/login", loginLimiter, async (req, res) => {
     const rid = req.requestId ?? "req_unknown";
     const { idToken } = loginSchema.parse(req.body);
@@ -132,7 +145,7 @@ export function authRouter(deps: ApiDeps): Router {
       };
     } catch (err) {
       if (err instanceof ApiError) throw err;
-      logger.warn({ err: String(err), requestId: rid }, "verifikasi idToken gagal");
+      logger.warn({ err: String(err), requestId: rid }, "tahap login_verify_id_token gagal");
       await recordAudit(db, {
         action: "user.login_failed",
         actorType: "user",
@@ -147,45 +160,45 @@ export function authRouter(deps: ApiDeps): Router {
       throw ApiError.unauthenticated("Token autentikasi tidak valid.");
     }
 
-    let user: Awaited<ReturnType<typeof upsertUserOnLogin>>;
-    try {
-      user = await upsertUserOnLogin(db, profile, rid);
-    } catch (err) {
-      throw lemparTahap("login_upsert_user", rid, err);
-    }
-    let tokenJanji: { token: string; expiresAt: number };
-    try {
-      tokenJanji = await createSession(
-        db,
-        profile.uid,
-        env.SESSION_TTL_HOURS * 3600 * 1000,
-      );
-    } catch (err) {
-      throw lemparTahap("login_create_session", rid, err);
-    }
-    const { token, expiresAt } = tokenJanji;
-    res.cookie(env.SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      expires: new Date(expiresAt),
-    });
+    const user = await denganTahap(
+      logger,
+      rid,
+      "login_upsert_user",
+      () => upsertUserOnLogin(db, profile, rid),
+      "Masuk gagal saat menyimpan pengguna. Coba lagi nanti.",
+    );
 
-    let memberships: Awaited<ReturnType<typeof listUserMemberships>>;
-    try {
-      memberships = await listUserMemberships(db, profile.uid);
-    } catch (err) {
-      throw lemparTahap("login_list_memberships", rid, err);
-    }
+    const sesi = await denganTahap(
+      logger,
+      rid,
+      "login_create_session",
+      () => createSession(db, profile.uid, env.SESSION_TTL_HOURS * 3600 * 1000),
+      "Masuk gagal saat menerbitkan sesi. Coba lagi nanti.",
+    );
+    terbitkanSesi(res, sesi.token, sesi.expiresAt);
+
+    const memberships = await denganTahap(
+      logger,
+      rid,
+      "login_list_memberships",
+      () => listUserMemberships(db, profile.uid),
+      "Masuk gagal saat membaca keanggotaan. Coba lagi nanti.",
+    );
     res.status(200).json(successEnvelope({ user, memberships }, rid));
   });
 
+  // ── Keluar: hapus sesi secara otoritatif + bersihkan cookie ────────
   router.post("/logout", async (req, res) => {
     const rid = req.requestId ?? "req_unknown";
     const token = req.cookies?.[env.SESSION_COOKIE_NAME];
     if (typeof token === "string" && token.length > 0) {
-      await destroySession(db, token);
+      await denganTahap(
+        logger,
+        rid,
+        "logout_destroy_session",
+        () => destroySession(db, token),
+        "Keluar gagal. Coba lagi nanti.",
+      );
     }
     res.clearCookie(env.SESSION_COOKIE_NAME, { path: "/" });
     if (req.auth) {
@@ -197,14 +210,23 @@ export function authRouter(deps: ApiDeps): Router {
         resourceId: null,
         requestId: rid,
         outcome: "success",
+      }).catch((auditErr) => {
+        logger.warn({ err: auditErr, requestId: rid }, "audit logout gagal tersimpan");
       });
     }
     res.status(200).json(successEnvelope({ loggedOut: true }, rid));
   });
 
+  // ── Siapa saya: pengguna + keanggotaan workspace-nya ───────────────
   router.get("/me", requireAuth, async (req, res) => {
     const rid = req.requestId ?? "req_unknown";
-    const memberships = await listUserMemberships(db, req.auth?.uid ?? "");
+    const memberships = await denganTahap(
+      logger,
+      rid,
+      "me_list_memberships",
+      () => listUserMemberships(db, req.auth?.uid ?? ""),
+      "Gagal membaca keanggotaan. Coba lagi nanti.",
+    );
     res.status(200).json(
       successEnvelope(
         {

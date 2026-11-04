@@ -32,3 +32,7 @@ services:
         sync: false
       - key: SESSION_COOKIE_NAME
         value: nasabku_session
+      # Diagnostik 500: respons memuat debug { stage, dbCode }.
+      # Setelah penyebab gangguan diketahui, beri nilai "false".
+      - key: SHOW_DB_ERRORS
+        value: "true"
