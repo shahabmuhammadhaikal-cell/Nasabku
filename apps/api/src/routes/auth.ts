@@ -16,6 +16,15 @@ import type { ApiDeps } from "../types/context";
  */
 export function authRouter(deps: ApiDeps): Router {
   const { env, db, firebaseAuth, logger } = deps;
+
+  // Bungkus galat tahap tulisFirestore dengan label tahap dan galat
+  // penuh di log: kode Firestore (mis. PERMISSION_DENIED) langsung
+  // terbaca di log Render tanpa menurunkan detail ke respons klien.
+  function lemparTahap(label: string, rid: string, err: unknown): ApiError {
+    logger.error({ stage: label, err, requestId: rid }, "tulis auth gagal");
+    return ApiError.internal("Operasi autentikasi gagal. Coba lagi nanti.");
+  }
+
   const router = Router();
   const loginLimiter = createRateLimiter({
     windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -63,11 +72,16 @@ export function authRouter(deps: ApiDeps): Router {
       throw ApiError.internal("Pendaftaran gagal. Coba lagi nanti.");
     }
 
-    const user = await upsertUserOnLogin(
-      db,
-      { uid, email, name: null, emailVerified: false },
-      rid,
-    );
+    let user: Awaited<ReturnType<typeof upsertUserOnLogin>>;
+    try {
+      user = await upsertUserOnLogin(
+        db,
+        { uid, email, name: null, emailVerified: false },
+        rid,
+      );
+    } catch (err) {
+      throw lemparTahap("register_upsert_user", rid, err);
+    }
     await recordAudit(db, {
       action: "user.registered",
       actorType: "user",
@@ -77,11 +91,13 @@ export function authRouter(deps: ApiDeps): Router {
       outcome: "success",
     }).catch(() => {});
 
-    const { token, expiresAt } = await createSession(
-      db,
-      uid,
-      env.SESSION_TTL_HOURS * 3600 * 1000,
-    );
+    let tokenJanji: { token: string; expiresAt: number };
+    try {
+      tokenJanji = await createSession(db, uid, env.SESSION_TTL_HOURS * 3600 * 1000);
+    } catch (err) {
+      throw lemparTahap("register_create_session", rid, err);
+    }
+    const { token, expiresAt } = tokenJanji;
     res.cookie(env.SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
@@ -89,7 +105,12 @@ export function authRouter(deps: ApiDeps): Router {
       path: "/",
       expires: new Date(expiresAt),
     });
-    const memberships = await listUserMemberships(db, uid);
+    let memberships: Awaited<ReturnType<typeof listUserMemberships>>;
+    try {
+      memberships = await listUserMemberships(db, uid);
+    } catch (err) {
+      throw lemparTahap("register_list_memberships", rid, err);
+    }
     res.status(201).json(successEnvelope({ user, memberships }, rid));
   });
 
@@ -126,12 +147,23 @@ export function authRouter(deps: ApiDeps): Router {
       throw ApiError.unauthenticated("Token autentikasi tidak valid.");
     }
 
-    const user = await upsertUserOnLogin(db, profile, rid);
-    const { token, expiresAt } = await createSession(
-      db,
-      profile.uid,
-      env.SESSION_TTL_HOURS * 3600 * 1000,
-    );
+    let user: Awaited<ReturnType<typeof upsertUserOnLogin>>;
+    try {
+      user = await upsertUserOnLogin(db, profile, rid);
+    } catch (err) {
+      throw lemparTahap("login_upsert_user", rid, err);
+    }
+    let tokenJanji: { token: string; expiresAt: number };
+    try {
+      tokenJanji = await createSession(
+        db,
+        profile.uid,
+        env.SESSION_TTL_HOURS * 3600 * 1000,
+      );
+    } catch (err) {
+      throw lemparTahap("login_create_session", rid, err);
+    }
+    const { token, expiresAt } = tokenJanji;
     res.cookie(env.SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
@@ -140,7 +172,12 @@ export function authRouter(deps: ApiDeps): Router {
       expires: new Date(expiresAt),
     });
 
-    const memberships = await listUserMemberships(db, profile.uid);
+    let memberships: Awaited<ReturnType<typeof listUserMemberships>>;
+    try {
+      memberships = await listUserMemberships(db, profile.uid);
+    } catch (err) {
+      throw lemparTahap("login_list_memberships", rid, err);
+    }
     res.status(200).json(successEnvelope({ user, memberships }, rid));
   });
 
