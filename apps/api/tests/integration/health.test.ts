@@ -31,10 +31,12 @@ describe("Kesehatan & kontrak envelope", () => {
     expect(bad.headers["x-request-id"]).toMatch(/^req_/);
   });
 
-  it("GET /api/v1/health/ready → 200 saat emulator Firestore terjangkau", async () => {
+  it("GET /api/v1/health/ready → 200 + keterangan database saat emulator terjangkau", async () => {
     const res = await request(ctx.app).get("/api/v1/health/ready");
+    // Kesiapan TIDAK bergantung pada Firestore: 200 selalu, status
+    // database sekadar keterangan (lihat komentar healthRouter).
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ status: "ok" });
+    expect(res.body.data).toEqual({ status: "siap", database: "tersedia" });
   });
 
   it("rute tak dikenal → 404 envelope NOT_FOUND", async () => {

@@ -10,7 +10,10 @@ services:
     name: nasabku-api
     runtime: node
     plan: free
-    healthCheckPath: /api/v1/health/ready
+    # Health check = liveness. Jangan pakai /ready untuk Render: bila
+    # bergantung pada Firestore, gangguan izin/API membuat Render
+    # menolak promosi build baru dan instance lama terus disajikan.
+    healthCheckPath: /api/v1/health/live
     # --include=dev wajib: NODE_ENV=production membuat npm melewatkan
     # devDependencies, padahal esbuild (alat build) ada di sana.
     buildCommand: npm ci --include=dev && npm run build
