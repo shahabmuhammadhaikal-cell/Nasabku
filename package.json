@@ -1,35 +1,30 @@
 {
   "name": "nasabku",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Nasabku — platform privat dokumentasi nasab historis berbasis sumber",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "type": "module",
+  "description": "Nasabku — aplikasi silsilah keluarga: backend Express + SQLite, frontend tanpa framework.",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=23.4"
   },
   "scripts": {
-    "build": "esbuild apps/api/src/index.ts --bundle --format=esm --platform=node --target=node22 --outfile=apps/api/dist/server.js --external:express --external:cookie-parser --external:firebase-admin --external:pino --external:pino-http --external:zod",
-    "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint .",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "test:integration": "firebase emulators:exec --only auth,firestore --project demo-nasabku \"npm run test:integration:run\"",
-    "test:integration:run": "vitest run --config apps/api/vitest.integration.config.ts",
-    "dev:api": "tsx watch apps/api/src/index.ts",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-nasabku"
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^24.19.2",
-    "esbuild": "^0.28.2",
-    "eslint": "^10.12.0",
-    "firebase-tools": "^15.33.0",
-    "tsx": "^4.23.15",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.4"
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^5.1.0"
   }
 }

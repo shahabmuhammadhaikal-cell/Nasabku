@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nasabku — Silsilah Keluarga</title>
+    <meta name="description" content="Catat anggota keluarga dan hubungan silsilahnya dalam satu tempat." />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <header class="puncak">
+      <div class="merek"><span class="lambang" aria-hidden="true">🌳</span> Nasabku</div>
+      <div class="sisi-pengguna" id="sisi-pengguna" hidden>
+        <span id="nama-pengguna" class="nama-pengguna"></span>
+        <button type="button" class="tombol tombol-samar" id="tombol-keluar">Keluar</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="tampilan-masuk" class="layar-masuk">
+        <div class="kartu kartu-masuk">
+          <h1>Rawat silsilah keluarga Anda</h1>
+          <p class="keterangan">
+            Catat nama, tahun lahir dan wafat, serta hubungan orang tua–anak. Semua tersimpan rapi dan
+            hanya bisa dibuka oleh Anda.
+          </p>
+
+          <div class="tab" role="tablist">
+            <button type="button" data-mode="masuk" class="tab-aktif" role="tab">Masuk</button>
+            <button type="button" data-mode="daftar" role="tab">Daftar</button>
+          </div>
+
+          <form id="form-masuk" novalidate>
+            <label>
+              Email
+              <input type="email" name="email" autocomplete="email" required placeholder="nama@contoh.com" />
+            </label>
+            <label>
+              Kata sandi
+              <input type="password" name="sandi" autocomplete="current-password" required placeholder="Minimal 8 karakter" />
+            </label>
+            <button type="submit" class="tombol tombol-utama lebar">Masuk</button>
+          </form>
+
+          <form id="form-daftar" hidden novalidate>
+            <label>
+              Nama Anda
+              <input type="text" name="nama" autocomplete="name" required placeholder="Nama lengkap" />
+            </label>
+            <label>
+              Email
+              <input type="email" name="email" autocomplete="email" required placeholder="nama@contoh.com" />
+            </label>
+            <label>
+              Kata sandi
+              <input type="password" name="sandi" autocomplete="new-password" required placeholder="Minimal 8 karakter" />
+            </label>
+            <button type="submit" class="tombol tombol-utama lebar">Buat akun</button>
+          </form>
+
+          <p class="pesan" id="pesan-masuk" role="alert" hidden></p>
+        </div>
+      </section>
+
+      <section id="tampilan-aplikasi" class="tata-letak" hidden>
+        <aside class="panel-samping">
+          <h2>Ruang kerja</h2>
+          <ul id="daftar-ruang" class="daftar-ruang"></ul>
+          <form id="form-ruang" class="form-ruang">
+            <input type="text" name="nama" placeholder="Nama keluarga / marga" maxlength="80" required />
+            <button type="submit" class="tombol tombol-samar">Buat</button>
+          </form>
+        </aside>
+
+        <section class="panel-utama">
+          <div class="bilah-alat">
+            <div class="judul-panel">
+              <h2 id="judul-ruang">—</h2>
+              <span id="jumlah-orang" class="keterangan kecil"></span>
+            </div>
+            <div class="alat-kanan">
+              <input type="search" id="cari" placeholder="Cari nama…" aria-label="Cari nama" />
+              <button type="button" class="tombol tombol-utama" id="tombol-tambah">+ Tambah orang</button>
+            </div>
+          </div>
+
+          <div class="isi-panel">
+            <div class="kolom-daftar">
+              <form id="form-orang" class="kartu-form" hidden novalidate>
+                <h3 id="judul-form-orang">Tambah orang</h3>
+                <div class="baris">
+                  <label>
+                    Nama
+                    <input type="text" name="nama" required maxlength="120" placeholder="Nama lengkap" />
+                  </label>
+                  <label>
+                    Jenis kelamin
+                    <select name="jenisKelamin">
+                      <option value="U">Belum diketahui</option>
+                      <option value="L">Laki-laki</option>
+                      <option value="P">Perempuan</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="baris">
+                  <label>
+                    Tahun lahir
+                    <input type="number" name="tahunLahir" min="1" max="2200" placeholder="mis. 1954" />
+                  </label>
+                  <label>
+                    Tahun wafat
+                    <input type="number" name="tahunWafat" min="1" max="2200" placeholder="kosongkan bila masih hidup" />
+                  </label>
+                </div>
+                <label>
+                  Catatan
+                  <textarea name="catatan" rows="2" maxlength="2000" placeholder="Kampung asal, pekerjaan, kisah singkat…"></textarea>
+                </label>
+                <p class="pesan" id="pesan-orang" role="alert" hidden></p>
+                <div class="tombol-baris">
+                  <button type="submit" class="tombol tombol-utama">Simpan</button>
+                  <button type="button" class="tombol tombol-samar" id="batal-orang">Batal</button>
+                </div>
+              </form>
+
+              <p id="kosong-orang" class="kosong" hidden>
+                Belum ada anggota keluarga. Tekan <strong>+ Tambah orang</strong> untuk memulai.
+              </p>
+              <ul id="daftar-orang" class="daftar-orang"></ul>
+            </div>
+
+            <div class="kolom-rinci" id="rinci" hidden></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

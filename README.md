@@ -1,111 +1,91 @@
 # Nasabku
 
-Platform privat dokumentasi **nasab historis berbasis sumber**. Keputusan
-hanya berlaku bila sumber dapat dipertanggungjawabkan; sumber pribadi
-dilindungi dengan redaksi, tanda tangan, dan jejak audit.
+Aplikasi web silsilah keluarga: catat anggota keluarga, hubungan orang tua–anak, dan lihat pohon keturunan
+maupun leluhurnya.
 
-> **Status: Fase 1 (fondasi & autentikasi)** — backend API + RBAC + audit
-> dasar berjalan penuh di Emulator Suite. Backend sementara memakai
-> **Firebase** (lihat [ADR-0001](docs/adr/ADR-0001-firebase-interim.md));
-> target akhir tetap PostgreSQL + Prisma.
+- **Backend**: Node.js + Express 5 + TypeScript, basis data SQLite lewat modul bawaan `node:sqlite`.
+- **Frontend**: HTML/CSS/JavaScript murni (ES modules), disajikan oleh server yang sama — tanpa framework,
+  tanpa langkah build terpisah, tanpa SDK klien.
+- **Tanpa layanan eksternal**: tidak ada Firebase, tidak ada kunci GCP, tidak ada basis data terkelola.
+  Cukup `npm install`, dan aplikasi langsung berjalan.
 
-## Struktur monorepo
-
-```
-apps/api/            Express 5 + TypeScript (API /api/v1)
-packages/shared/     Domain murni: RBAC, kode error/envelope, jenis audit
-packages/config/     Skema konfigurasi env (zod) — gagal-loud di startup
-firestore.rules      Default DENY (semua akses lewat API/Admin SDK)
-firestore.indexes.json
-firebase.json        Konfigurasi Emulator Suite (auth :9099, firestore :8080)
-docs/adr/            Keputusan arsitektur
-```
-
-## Memulai
-
-Prasyarat: Node ≥ 22.12, Java 21 (untuk Firestore Emulator).
+## Menjalankan
 
 ```bash
 npm install
-cp .env.example .env            # bila butuh konfigurasi lokal
-
-# Emulator Suite (proyek demo- tidak memerlukan login)
-export JAVA_HOME=$HOME/tools/jre21   # sesuaikan lokasi Java Anda
-npm run emulators                  # terminal 1
-npm run dev:api                    # terminal 2 (API di :8080)
-
-# Verifikasi
-npm run typecheck
-npm run lint
-npm test                           # unit (tanpa emulator)
-npm run test:integration           # 25 tes di Emulator Suite
+npm run dev      # http://localhost:3000, memuat ulang saat berkas berubah
 ```
 
-`test:integration` menjalankan `firebase emulators:exec`, sehingga variabel
-`FIREBASE_AUTH_EMULATOR_HOST`/`FIRESTORE_EMULATOR_HOST` diset otomatis.
+Untuk mode produksi:
 
-## Kontrak API (ringkas)
-
-Semua respons memakai envelope seragam:
-
-```jsonc
-// sukses
-{ "data": { "...": "..." }, "meta": { "requestId": "req_..." } }
-// gagal
-{ "error": { "code": "VALIDATION_ERROR", "message": "...",
-             "details": [{ "field": "email", "reason": "INVALID_EMAIL" }],
-             "requestId": "req_..." } }
+```bash
+npm install
+npm run build    # kompilasi TypeScript ke dist/
+npm start        # jalankan dist/index.js
 ```
 
-Endpoint Fase 1 (prefix `/api/v1`):
-
-| Metode & path | Izin | Keterangan |
-|---|---|---|
-| `GET /health/live` · `GET /health/ready` | publik | probe; `/ready` cek Firestore (503 bila tak terjangkau) |
-| `POST /auth/login` | publik | tukar ID token Firebase → cookie sesi HttpOnly SameSite=Lax |
-| `POST /auth/logout` | sesi | cabut sesi secara otoritatif |
-| `GET /auth/me` | sesi | profil + daftar keanggotaan |
-| `POST /workspaces` | sesi | buat workspace (slug unik atomik, pembuat = PLATFORM_ADMIN) |
-| `GET /workspaces` | sesi | workspace milik sendiri |
-| `GET/PATCH /workspaces/:id` | `workspace:read` / `workspace:update` | |
-| `GET/POST /workspaces/:id/members` | `member:read` / `member:invite` | |
-| `PATCH/DELETE /workspaces/:id/members/:uid` | `member:update` / `member:remove` | DELETE = cabut (REVOKED, soft) |
-| `GET /audit-events?workspaceId=` | `audit:read` | riwayat audit, kursor, filter aksi |
-
-Aturan keamanan yang ditegakkan:
-
-- **RBAC deny-by-default** (matriks di `packages/shared/src/roles.ts`);
-  `PLATFORM_ADMIN` sengaja **tidak** punya `claim:decide` (pemisahan tugas).
-- Non-anggota workspace menerima **404**, bukan 403 — keberadaan tidak bocor.
-- Metode tulis dengan `Origin` di luar allowlist → 403 (anti-CSRF; plus
-  SameSite=Lax).
-- Rate limit per-IP (in-memory; interim — lihat batasan di bawah).
-- Redaksi rahasia pada log (`cookie`, `authorization`, `password`, token)
-  dan metadata audit (kata kunci terlarang dibuang).
-- Audit selalu menyertakan `requestId` aktor; mutasi formal + audit dalam
-  satu transaksi Firestore.
+Basis data dibuat otomatis di `./data/nasabku.db` (diabaikan git). Butuh **Node.js 23.4+**
+(`node:sqlite` tersedia tanpa flag sejak versi itu); diuji pada Node 26.
 
 ## Konfigurasi
 
-Lihat [.env.example](.env.example). Skema divalidasi saat startup — bila
-gagal, hanya **nama** variabel yang dicetak (tanpa nilai). Di production,
-`USE_FIREBASE_EMULATORS=false` wajib (ditegakkan skema).
+Semua opsional; lihat `.env.example`.
 
-## Rencana fase berikutnya
+| Variabel | Bawaan | Keterangan |
+| --- | --- | --- |
+| `PORT` | `3000` | Port HTTP. |
+| `NODE_ENV` | `development` | `production` saat deploy. |
+| `DATABASE_PATH` | `./data/nasabku.db` | Lokasi berkas SQLite. |
+| `SESSION_TTL_HARI` | `30` | Umur sesi. |
+| `COOKIE_SECURE` | `false` | Setel `true` bila dilayani lewat HTTPS. |
 
-2. Data domain (orang, sumber, dokumen + signed URL, versi, redaksi)
-3. Klaim & bukti (anti-duplikat, versi, penelaahan)
-4. Sertifikat & penandatanganan
-5. Banding, notifikasi, PII/kebijakan retensi
-6. API klien eksternal (token berskup, idempotency-key)
-7. Keras: backup/restore, pemulihan, observability, optimasi
-8. Web UI (Next.js App Router) + QA menyeluruh
+## API
 
-## Batasan interim (jujur)
+Semua di bawah `/api/v1`. Sesi memakai cookie `HttpOnly` `nasabku_sesi` (token hanya disimpan sebagai
+sidik SHA-256 di basis data).
 
-- Rate limit in-memory: per-instance, tidak berlaku lintas instance.
-- Belum ada fitur lupa/reset kata sandi (butuh penyedia email transaksional —
-  keputusan produk).
-- Belum ada pengindeksan data; `firestore.indexes.json` harus dideploy ke
-  produksi (`firebase deploy --only firestore:indexes`) — emulator tidak
-  memberlakukan indeks komposit.
+| Metode | Jalur | Keterangan |
+| --- | --- | --- |
+| GET | `/health/live` | Liveness, tidak menyentuh basis data. |
+| GET | `/health/ready` | Selalu 200, menyatakan `database: tersedia \| tidak tersedia`. |
+| POST | `/auth/register` | `{ email, nama, sandi }` → 201 + cookie sesi. |
+| POST | `/auth/login` | `{ email, sandi }` → 200 + cookie sesi. |
+| POST | `/auth/logout` | 204, sesi dihapus dan cookie dibersihkan. |
+| GET | `/auth/me` | Profil pengguna pemilik sesi. |
+| GET/POST | `/workspaces` | Daftar / buat ruang kerja. |
+| GET/PATCH/DELETE | `/workspaces/:id` | Detail / ubah nama / hapus. |
+| GET/POST | `/workspaces/:id/persons` | Daftar (dukungan `?q=` dan `?limit=`) / tambah orang. |
+| GET/PATCH/DELETE | `/workspaces/:id/persons/:orangId` | Detail / ubah / hapus. |
+| GET/POST | `/workspaces/:id/relations` | Daftar (`?orangId=`) / catat relasi orang tua–anak. |
+| DELETE | `/workspaces/:id/relations/:relasiId` | Lepas relasi. |
+| GET | `/workspaces/:id/tree/:orangId` | `?arah=turun\|naik&kedalaman=1..10` → pohon silsilah. |
+
+Galat selalu berbentuk `{ "error": { "kode", "pesan", "rincian?" }, "idPermintaan" }`.
+
+### Aturan yang dijaga server
+
+- Setiap ruang kerja hanya dapat diakses pemiliknya; milik orang lain dijawab **404** agar tidak bocor.
+- Relasi tidak boleh menunjuk diri sendiri, tidak boleh ganda, dan **tidak boleh membentuk lingkaran**
+  (mis. A → B → C lalu C → A) — dijaga dengan penelusuran rekursif sebelum penyimpanan.
+- Tahun wafat tidak boleh lebih awal daripada tahun lahir.
+- Nama kosong, email tidak sah, dan kata sandi di bawah 8 karakter ditolak dengan 422.
+
+## Pengujian
+
+```bash
+npm run typecheck   # TypeScript strict, tanpa keluaran = lulus
+npm test            # 45 uji: unit pustaka inti + integrasi seluruh alur API
+```
+
+Uji integrasi menjalankan aplikasi Express sungguhan di atas basis data `:memory:`, sehingga tidak
+menyentuh berkas data Anda.
+
+## Deploy
+
+`render.yaml` sudah menyiapkan layanan web Node dengan health check di `/api/v1/health/live`.
+Health check **tidak** memakai basis data, sehingga deploy tidak pernah tertahan oleh masalah database;
+`/health/ready` tetap melaporkan keterjangkauan database tanpa menggagalkan promosi.
+
+> **Penting soal data**: paket gratis Render tidak menyediakan disk permanen. Tanpa Persistent Disk,
+> `./data/nasabku.db` hilang setiap deploy/restart. Untuk data sungguhan, pasang Persistent Disk dan
+> arahkan `DATABASE_PATH` ke sana (mis. `/var/data/nasabku.db`).

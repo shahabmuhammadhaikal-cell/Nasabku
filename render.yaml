@@ -1,41 +1,20 @@
-# Blueprint Render — https://render.com/docs/blueprint-spec
-# Dibaca Render saat membuat layanan dari repo ini (Deploy panel → Blueprint).
-# Nilai `sync: false` diisi manual/env secret saat pertama deploy:
-#   FIREBASE_PROJECT_ID             → ID proyek Firebase nyata (bukan demo-)
-#   FIREBASE_SERVICE_ACCOUNT_JSON   → JSON service account penuh (secret)
-#   APP_ORIGIN                      → URL API Render, mis. https://nasabku-api.onrender.com
-# Kredensial semua berupa secret; tidak ada nilai rahasia di file ini.
 services:
   - type: web
-    name: nasabku-api
+    name: nasabku
     runtime: node
     plan: free
-    # Health check = liveness. Jangan pakai /ready untuk Render: bila
-    # bergantung pada Firestore, gangguan izin/API membuat Render
-    # menolak promosi build baru dan instance lama terus disajikan.
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
     healthCheckPath: /api/v1/health/live
-    # --include=dev wajib: NODE_ENV=production membuat npm melewatkan
-    # devDependencies, padahal esbuild (alat build) ada di sana.
-    buildCommand: npm ci --include=dev && npm run build
-    startCommand: node apps/api/dist/server.js
     envVars:
+      - key: NODE_VERSION
+        value: "24"
       - key: NODE_ENV
         value: production
-      - key: NODE_VERSION
-        value: "22"
-      - key: USE_FIREBASE_EMULATORS
-        value: "false"
-      - key: FIREBASE_PROJECT_ID
-        sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT_JSON
-        sync: false
-      - key: APP_ORIGIN
-        sync: false
-      - key: API_CORS_ORIGINS
-        sync: false
-      - key: SESSION_COOKIE_NAME
-        value: nasabku_session
-      # Diagnostik 500: respons memuat debug { stage, dbCode }.
-      # Setelah penyebab gangguan diketahui, beri nilai "false".
-      - key: SHOW_DB_ERRORS
+      - key: COOKIE_SECURE
         value: "true"
+      - key: SESSION_TTL_HARI
+        value: "30"
+      # Tanpa Persistent Disk, data SQLite kembali kosong setiap deploy.
+      # Untuk data permanen: pasang disk di Render, lalu setel DATABASE_PATH ke /var/data/nasabku.db
+      # (jangan setel sebelum disk ada — direktori itu belum bisa ditulis).

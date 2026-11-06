@@ -1,14 +1,19 @@
 node_modules/
 dist/
 coverage/
+
+# Basis data SQLite lokal
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Lingkungan & rahasia
 .env
-.env.local
-*.log
-.logs/
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-*.tsbuildinfo
+.env.*
+!.env.example
+
+# Perkakas
 .DS_Store
-service-account*.json
+*.log
