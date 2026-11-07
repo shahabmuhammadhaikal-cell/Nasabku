@@ -3,7 +3,9 @@ services:
     name: nasabku
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    # --include=dev wajib: NODE_ENV=production membuat npm melewatkan devDependencies,
+    # sehingga tsc tidak terpasang dan build gagal dalam hitungan detik.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health/live
     envVars:
