@@ -1,47 +1,40 @@
-import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { DatabaseSync } from "node:sqlite";
-import { keRuangKerja, type Baris } from "../db.js";
+import type { Penyimpanan } from "../data/penyimpanan.js";
+import { galat } from "../lib/kesalahan.js";
 import { badanObjek, teksWajib } from "../lib/validasi.js";
 import { muatRuangKerja } from "../middleware/auth.js";
 
-export function ruteRuangKerja(db: DatabaseSync): Router {
+export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
   const rute = Router();
 
-  rute.get("/", (req, res) => {
-    const baris = db
-      .prepare("SELECT * FROM ruang_kerja WHERE pemilik_id = ? ORDER BY dibuat_pada ASC")
-      .all(req.pengguna?.id ?? "") as Baris[];
-    res.json({ ruangKerja: baris.map(keRuangKerja) });
+  rute.get("/", async (req, res) => {
+    res.json({ ruangKerja: await penyimpanan.daftarRuangKerja(req.pengguna?.id ?? "") });
   });
 
-  rute.post("/", (req, res) => {
+  rute.post("/", async (req, res) => {
     const badan = badanObjek(req.body);
     const nama = teksWajib(badan, "nama", "Nama ruang kerja", 2, 80);
-    const id = randomUUID();
-    const dibuatPada = new Date().toISOString();
-    db.prepare("INSERT INTO ruang_kerja (id, nama, pemilik_id, dibuat_pada) VALUES (?, ?, ?, ?)").run(
-      id,
-      nama,
-      req.pengguna?.id ?? "",
-      dibuatPada,
-    );
-    res.status(201).json({ ruangKerja: { id, nama, pemilikId: req.pengguna?.id ?? "", dibuatPada } });
+    const ruangKerja = await penyimpanan.buatRuangKerja(req.pengguna?.id ?? "", nama);
+    res.status(201).json({ ruangKerja });
   });
 
-  rute.get("/:workspaceId", muatRuangKerja(db), (req, res) => {
+  rute.get("/:workspaceId", muatRuangKerja(penyimpanan), (req, res) => {
     res.json({ ruangKerja: req.ruangKerja });
   });
 
-  rute.patch("/:workspaceId", muatRuangKerja(db), (req, res) => {
+  rute.patch("/:workspaceId", muatRuangKerja(penyimpanan), async (req, res) => {
+    const ruangKerja = req.ruangKerja;
+    if (!ruangKerja) throw galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan.");
+
     const badan = badanObjek(req.body);
     const nama = teksWajib(badan, "nama", "Nama ruang kerja", 2, 80);
-    db.prepare("UPDATE ruang_kerja SET nama = ? WHERE id = ?").run(nama, req.ruangKerja?.id ?? "");
-    res.json({ ruangKerja: { ...req.ruangKerja, nama } });
+    res.json({ ruangKerja: await penyimpanan.ubahNamaRuangKerja(ruangKerja, nama) });
   });
 
-  rute.delete("/:workspaceId", muatRuangKerja(db), (req, res) => {
-    db.prepare("DELETE FROM ruang_kerja WHERE id = ?").run(req.ruangKerja?.id ?? "");
+  rute.delete("/:workspaceId", muatRuangKerja(penyimpanan), async (req, res) => {
+    const id = req.ruangKerja?.id;
+    if (!id) throw galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan.");
+    await penyimpanan.hapusRuangKerja(id);
     res.status(204).end();
   });
 

@@ -1,15 +1,17 @@
 import { Router } from "express";
-import type { DatabaseSync } from "node:sqlite";
+import type { Penyimpanan } from "../data/penyimpanan.js";
 import { galat } from "../lib/kesalahan.js";
-import { telusuriSilsilah, type Arah } from "../lib/silsilah.js";
+import type { Arah } from "../lib/silsilah.js";
 
-export function ruteSilsilah(db: DatabaseSync): Router {
+export function ruteSilsilah(penyimpanan: Penyimpanan): Router {
   const rute = Router({ mergeParams: true });
 
-  rute.get("/:orangId", (req, res) => {
+  rute.get("/:orangId", async (req, res) => {
     const arahMentah = typeof req.query.arah === "string" ? req.query.arah : "turun";
     if (arahMentah !== "turun" && arahMentah !== "naik") {
-      throw galat(422, "VALIDASI_GAGAL", 'Parameter "arah" harus "turun" atau "naik".', { field: "arah" });
+      throw galat(422, "VALIDASI_GAGAL", 'Parameter "arah" harus "turun" atau "naik".', {
+        field: "arah",
+      });
     }
     const kedalamanMentah = Number(req.query.kedalaman ?? 5);
     if (!Number.isInteger(kedalamanMentah) || kedalamanMentah < 1 || kedalamanMentah > 10) {
@@ -18,8 +20,7 @@ export function ruteSilsilah(db: DatabaseSync): Router {
       });
     }
 
-    const hasil = telusuriSilsilah(
-      db,
+    const hasil = await penyimpanan.telusuri(
       req.ruangKerja?.id ?? "",
       String(req.params.orangId),
       arahMentah as Arah,

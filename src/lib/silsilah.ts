@@ -1,6 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
-import type { Baris, Orang } from "../db.js";
-import { keOrang } from "../db.js";
+import type { Orang, Relasi } from "../data/tipe.js";
 
 export type Arah = "turun" | "naik";
 
@@ -18,57 +16,51 @@ export interface HasilSilsilah {
   simpul: SimpulSilsilah[];
 }
 
-export function ambilOrang(db: DatabaseSync, ruangKerjaId: string, id: string): Orang | null {
-  const baris = db
-    .prepare("SELECT * FROM orang WHERE id = ? AND ruang_kerja_id = ?")
-    .get(id, ruangKerjaId) as Baris | undefined;
-  return baris ? keOrang(baris) : null;
+function urutNama(a: Orang, b: Orang): number {
+  return a.nama.localeCompare(b.nama, "id", { sensitivity: "base" }) || a.id.localeCompare(b.id);
 }
 
 /**
- * Menelusuri keturunan (turun) atau leluhur (naik) dari satu orang.
- * Mengembalikan null bila orang tidak ada di ruang kerja tersebut.
+ * Menelusuri keturunan (turun) atau leluhur (naik) dari satu orang, lapis demi lapis.
+ * Murni: menerima daftar orang dan relasi ruang kerja, tanpa menyentuh basis data.
  */
 export function telusuriSilsilah(
-  db: DatabaseSync,
-  ruangKerjaId: string,
-  akarId: string,
+  akar: Orang,
+  semuaOrang: readonly Orang[],
+  semuaRelasi: readonly Relasi[],
   arah: Arah,
   kedalamanMaks: number,
-): HasilSilsilah | null {
-  const akar = ambilOrang(db, ruangKerjaId, akarId);
-  if (!akar) return null;
+): HasilSilsilah {
+  const peta = new Map(semuaOrang.map((orang) => [orang.id, orang]));
+  const tetangga = new Map<string, string[]>();
+  for (const relasi of semuaRelasi) {
+    const dari = arah === "turun" ? relasi.orangTuaId : relasi.anakId;
+    const ke = arah === "turun" ? relasi.anakId : relasi.orangTuaId;
+    const daftar = tetangga.get(dari) ?? [];
+    daftar.push(ke);
+    tetangga.set(dari, daftar);
+  }
 
   const simpul: SimpulSilsilah[] = [{ orang: akar, kedalaman: 0, lewat: [akar.id] }];
-  const rantai = new Map<string, string[]>([[akar.id, [akar.id]]]);
   const terlihat = new Set<string>([akar.id]);
+  let batas: { id: string; lewat: string[] }[] = [{ id: akar.id, lewat: [akar.id] }];
 
-  let batas: string[] = [akar.id];
   for (let kedalaman = 1; kedalaman <= kedalamanMaks && batas.length > 0; kedalaman += 1) {
-    const tanda = batas.map(() => "?").join(",");
-    const sql =
-      arah === "turun"
-        ? `SELECT o.*, r.orang_tua_id AS induk
-             FROM relasi r JOIN orang o ON o.id = r.anak_id
-            WHERE r.ruang_kerja_id = ? AND r.orang_tua_id IN (${tanda})`
-        : `SELECT o.*, r.anak_id AS induk
-             FROM relasi r JOIN orang o ON o.id = r.orang_tua_id
-            WHERE r.ruang_kerja_id = ? AND r.anak_id IN (${tanda})`;
+    const berikut: { id: string; lewat: string[] }[] = [];
+    for (const induk of batas) {
+      const kerabat = (tetangga.get(induk.id) ?? [])
+        .map((id) => peta.get(id))
+        .filter((orang): orang is Orang => Boolean(orang))
+        .sort(urutNama);
 
-    const baris = db.prepare(sql).all(ruangKerjaId, ...batas) as Baris[];
-    const berikut: string[] = [];
-
-    for (const b of baris) {
-      const orang = keOrang(b);
-      if (terlihat.has(orang.id)) continue;
-      terlihat.add(orang.id);
-      berikut.push(orang.id);
-      const induk = String(b.induk ?? "");
-      const lewat = [...(rantai.get(induk) ?? [akar.id]), orang.id];
-      rantai.set(orang.id, lewat);
-      simpul.push({ orang, kedalaman, lewat });
+      for (const orang of kerabat) {
+        if (terlihat.has(orang.id)) continue;
+        terlihat.add(orang.id);
+        const lewat = [...induk.lewat, orang.id];
+        simpul.push({ orang, kedalaman, lewat });
+        berikut.push({ id: orang.id, lewat });
+      }
     }
-
     batas = berikut;
   }
 
@@ -76,25 +68,33 @@ export function telusuriSilsilah(
 }
 
 /**
- * Benar bila `calonOrangTua` adalah keturunan `calonAnak` (atau orang yang sama),
- * sehingga menambahkan relasi orang tua→anak akan membentuk lingkaran.
+ * Benar bila `calonOrangTua` sudah menjadi keturunan `calonAnak` (atau orang yang sama),
+ * sehingga menambahkan relasi orang tua→anak akan membentuk lingkaran silsilah.
  * Penelusuran dimulai dari calon anak, lalu dicari apakah calon orang tua ada di dalamnya.
  */
 export function akanMembentukSiklus(
-  db: DatabaseSync,
+  semuaRelasi: readonly Relasi[],
   calonOrangTuaId: string,
   calonAnakId: string,
 ): boolean {
   if (calonOrangTuaId === calonAnakId) return true;
-  const baris = db
-    .prepare(
-      `WITH RECURSIVE turunan(id) AS (
-         SELECT anak_id FROM relasi WHERE orang_tua_id = ?
-         UNION
-         SELECT r.anak_id FROM relasi r JOIN turunan t ON r.orang_tua_id = t.id
-       )
-       SELECT 1 AS ada FROM turunan WHERE id = ? LIMIT 1`,
-    )
-    .get(calonAnakId, calonOrangTuaId) as Baris | undefined;
-  return Boolean(baris);
+
+  const turunan = new Map<string, string[]>();
+  for (const relasi of semuaRelasi) {
+    const daftar = turunan.get(relasi.orangTuaId) ?? [];
+    daftar.push(relasi.anakId);
+    turunan.set(relasi.orangTuaId, daftar);
+  }
+
+  const antre = [calonAnakId];
+  const terlihat = new Set<string>();
+  while (antre.length > 0) {
+    const sekarang = antre.shift();
+    if (sekarang === undefined) break;
+    if (sekarang === calonOrangTuaId) return true;
+    if (terlihat.has(sekarang)) continue;
+    terlihat.add(sekarang);
+    antre.push(...(turunan.get(sekarang) ?? []));
+  }
+  return false;
 }

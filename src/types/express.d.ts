@@ -1,4 +1,4 @@
-import type { RuangKerja } from "../db.js";
+import type { RuangKerja } from "../data/tipe.js";
 
 export interface PenggunaPermintaan {
   id: string;

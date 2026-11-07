@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default DENY. Semua akses data lewat API server (Admin SDK) yang melewati rules;
+    // peramban tidak boleh membaca/menulis Firestore secara langsung.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

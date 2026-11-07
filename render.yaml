@@ -17,6 +17,10 @@ services:
         value: "true"
       - key: SESSION_TTL_HARI
         value: "30"
-      # Tanpa Persistent Disk, data SQLite kembali kosong setiap deploy.
-      # Untuk data permanen: pasang disk di Render, lalu setel DATABASE_PATH ke /var/data/nasabku.db
-      # (jangan setel sebelum disk ada — direktori itu belum bisa ditulis).
+      - key: FIREBASE_PROJECT_ID
+        value: nasabku-prod
+      # Isi lewat dashboard Render (Environment → Secret). Jangan commit nilainya.
+      # Tanpa secret ini aplikasi tetap hidup, tetapi rute data menjawab 503
+      # FIRESTORE_BELUM_DIKONFIGURASI.
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false

@@ -1,34 +1,19 @@
-import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { DatabaseSync } from "node:sqlite";
-import { keRelasi, type Baris } from "../db.js";
+import type { Penyimpanan } from "../data/penyimpanan.js";
 import { galat } from "../lib/kesalahan.js";
-import { akanMembentukSiklus, ambilOrang } from "../lib/silsilah.js";
 import { badanObjek, teksWajib } from "../lib/validasi.js";
 
-export function ruteRelasi(db: DatabaseSync): Router {
+export function ruteRelasi(penyimpanan: Penyimpanan): Router {
   const rute = Router({ mergeParams: true });
   const ruangId = (req: { ruangKerja?: { id: string } }): string => req.ruangKerja?.id ?? "";
 
-  rute.get("/", (req, res) => {
-    const orangId = typeof req.query.orangId === "string" ? req.query.orangId : "";
-    const baris = (
-      orangId
-        ? db
-            .prepare(
-              `SELECT * FROM relasi
-                WHERE ruang_kerja_id = ? AND (orang_tua_id = ? OR anak_id = ?)
-                ORDER BY dibuat_pada ASC`,
-            )
-            .all(ruangId(req), orangId, orangId)
-        : db
-            .prepare("SELECT * FROM relasi WHERE ruang_kerja_id = ? ORDER BY dibuat_pada ASC")
-            .all(ruangId(req))
-    ) as Baris[];
-    res.json({ relasi: baris.map(keRelasi), jumlah: baris.length });
+  rute.get("/", async (req, res) => {
+    const orangId = typeof req.query.orangId === "string" ? req.query.orangId : undefined;
+    const relasi = await penyimpanan.daftarRelasi(ruangId(req), orangId);
+    res.json({ relasi, jumlah: relasi.length });
   });
 
-  rute.post("/", (req, res) => {
+  rute.post("/", async (req, res) => {
     const badan = badanObjek(req.body);
     const orangTuaId = teksWajib(badan, "orangTuaId", "Orang tua", 1, 100);
     const anakId = teksWajib(badan, "anakId", "Anak", 1, 100);
@@ -38,10 +23,17 @@ export function ruteRelasi(db: DatabaseSync): Router {
         field: "anakId",
       });
     }
-    if (!ambilOrang(db, ruangId(req), orangTuaId) || !ambilOrang(db, ruangId(req), anakId)) {
+
+    const idRuang = ruangId(req);
+    const [orangTua, anak] = await Promise.all([
+      penyimpanan.ambilOrang(idRuang, orangTuaId),
+      penyimpanan.ambilOrang(idRuang, anakId),
+    ]);
+    if (!orangTua || !anak) {
       throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tua atau anak tidak ditemukan di ruang kerja ini.");
     }
-    if (akanMembentukSiklus(db, orangTuaId, anakId)) {
+
+    if (await penyimpanan.akanMembentukSiklus(idRuang, orangTuaId, anakId)) {
       throw galat(
         409,
         "SIKLUS_SILSILAH",
@@ -49,31 +41,16 @@ export function ruteRelasi(db: DatabaseSync): Router {
       );
     }
 
-    const sudahAda = db
-      .prepare("SELECT id FROM relasi WHERE orang_tua_id = ? AND anak_id = ?")
-      .get(orangTuaId, anakId) as Baris | undefined;
-    if (sudahAda) {
+    const relasi = await penyimpanan.buatRelasi(idRuang, orangTuaId, anakId);
+    if (!relasi) {
       throw galat(409, "RELASI_SUDAH_ADA", "Relasi orang tua–anak ini sudah tercatat.");
     }
-
-    const id = randomUUID();
-    const dibuatPada = new Date().toISOString();
-    db.prepare(
-      "INSERT INTO relasi (id, ruang_kerja_id, orang_tua_id, anak_id, dibuat_pada) VALUES (?, ?, ?, ?, ?)",
-    ).run(id, ruangId(req), orangTuaId, anakId, dibuatPada);
-
-    res.status(201).json({
-      relasi: { id, ruangKerjaId: ruangId(req), orangTuaId, anakId, dibuatPada },
-    });
+    res.status(201).json({ relasi });
   });
 
-  rute.delete("/:relasiId", (req, res) => {
-    const hasil = db
-      .prepare("DELETE FROM relasi WHERE id = ? AND ruang_kerja_id = ?")
-      .run(String(req.params.relasiId), ruangId(req)) as { changes: number };
-    if (hasil.changes === 0) {
-      throw galat(404, "RELASI_TIDAK_DITEMUKAN", "Relasi tidak ditemukan.");
-    }
+  rute.delete("/:relasiId", async (req, res) => {
+    const terhapus = await penyimpanan.hapusRelasi(ruangId(req), String(req.params.relasiId));
+    if (!terhapus) throw galat(404, "RELASI_TIDAK_DITEMUKAN", "Relasi tidak ditemukan.");
     res.status(204).end();
   });
 

@@ -1,14 +1,19 @@
 import request from "supertest";
 import { buatAplikasi } from "../src/app.js";
 import { muatKonfigurasi, type Konfigurasi } from "../src/config.js";
-import { bukaDatabase } from "../src/db.js";
+import { buatBasisMemori } from "../src/data/memori.js";
+import { buatPenyimpanan, type Penyimpanan } from "../src/data/penyimpanan.js";
 
 export type Agen = ReturnType<typeof request.agent>;
 
-export function buatAplikasiUji(): { app: ReturnType<typeof buatAplikasi>; konfigurasi: Konfigurasi } {
-  const db = bukaDatabase(":memory:");
+export function buatAplikasiUji(): {
+  app: ReturnType<typeof buatAplikasi>;
+  konfigurasi: Konfigurasi;
+  penyimpanan: Penyimpanan;
+} {
+  const penyimpanan = buatPenyimpanan(buatBasisMemori());
   const konfigurasi = muatKonfigurasi({ NODE_ENV: "test" } as NodeJS.ProcessEnv);
-  return { app: buatAplikasi({ db, konfigurasi }), konfigurasi };
+  return { app: buatAplikasi({ penyimpanan, konfigurasi }), konfigurasi, penyimpanan };
 }
 
 export const SANDI_UJI = "RahasiaUji!123";

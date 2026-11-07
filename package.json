@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Nasabku — aplikasi silsilah keluarga: backend Express + SQLite, frontend tanpa framework.",
+  "description": "Nasabku — aplikasi silsilah keluarga: backend Express + Firestore, frontend tanpa framework.",
   "engines": {
     "node": ">=23.4"
   },
@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.4.0",
     "express": "^5.1.0"
   },
   "devDependencies": {

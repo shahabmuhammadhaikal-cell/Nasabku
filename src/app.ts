@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
-import type { DatabaseSync } from "node:sqlite";
 import type { Konfigurasi } from "./config.js";
+import type { Penyimpanan } from "./data/penyimpanan.js";
 import { ruteAuth } from "./routes/auth.js";
 import { ruteKesehatan } from "./routes/health.js";
 import { ruteOrang } from "./routes/orang.js";
@@ -15,11 +15,11 @@ import { idPermintaan } from "./middleware/idPermintaan.js";
 export const DIREKTORI_PUBLIK = fileURLToPath(new URL("../public", import.meta.url));
 
 export interface KetergantunganAplikasi {
-  db: DatabaseSync;
+  penyimpanan: Penyimpanan;
   konfigurasi: Konfigurasi;
 }
 
-export function buatAplikasi({ db, konfigurasi }: KetergantunganAplikasi): Express {
+export function buatAplikasi({ penyimpanan, konfigurasi }: KetergantunganAplikasi): Express {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -33,13 +33,28 @@ export function buatAplikasi({ db, konfigurasi }: KetergantunganAplikasi): Expre
   });
 
   const api = express.Router();
-  api.use("/health", ruteKesehatan(db, konfigurasi));
-  api.use("/auth", ruteAuth(db, konfigurasi));
+  api.use("/health", ruteKesehatan(penyimpanan, konfigurasi));
+  api.use("/auth", ruteAuth(penyimpanan, konfigurasi));
 
-  api.use("/workspaces", wajibMasuk(db), ruteRuangKerja(db));
-  api.use("/workspaces/:workspaceId/persons", wajibMasuk(db), muatRuangKerja(db), ruteOrang(db));
-  api.use("/workspaces/:workspaceId/relations", wajibMasuk(db), muatRuangKerja(db), ruteRelasi(db));
-  api.use("/workspaces/:workspaceId/tree", wajibMasuk(db), muatRuangKerja(db), ruteSilsilah(db));
+  api.use("/workspaces", wajibMasuk(penyimpanan), ruteRuangKerja(penyimpanan));
+  api.use(
+    "/workspaces/:workspaceId/persons",
+    wajibMasuk(penyimpanan),
+    muatRuangKerja(penyimpanan),
+    ruteOrang(penyimpanan),
+  );
+  api.use(
+    "/workspaces/:workspaceId/relations",
+    wajibMasuk(penyimpanan),
+    muatRuangKerja(penyimpanan),
+    ruteRelasi(penyimpanan),
+  );
+  api.use(
+    "/workspaces/:workspaceId/tree",
+    wajibMasuk(penyimpanan),
+    muatRuangKerja(penyimpanan),
+    ruteSilsilah(penyimpanan),
+  );
 
   api.use(ruteTidakAda);
   app.use("/api/v1", api);
