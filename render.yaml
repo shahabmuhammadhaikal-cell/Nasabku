@@ -17,10 +17,9 @@ services:
         value: "true"
       - key: SESSION_TTL_HARI
         value: "30"
-      - key: FIREBASE_PROJECT_ID
-        value: nasabku-prod
-      # Isi lewat dashboard Render (Environment → Secret). Jangan commit nilainya.
-      # Tanpa secret ini aplikasi tetap hidup, tetapi rute data menjawab 503
+      # Kredensial Firestore sengaja TIDAK ditulis di berkas ini.
+      # Isi di dashboard Render → Environment:
+      #   FIREBASE_PROJECT_ID              = nasabku-prod
+      #   FIREBASE_SERVICE_ACCOUNT_JSON    = isi berkas service account (Secret)
+      # Tanpa itu aplikasi tetap hidup, tetapi rute data menjawab 503
       # FIRESTORE_BELUM_DIKONFIGURASI.
-      - key: FIREBASE_SERVICE_ACCOUNT_JSON
-        sync: false
