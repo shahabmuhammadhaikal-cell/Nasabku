@@ -5,7 +5,8 @@ services:
     plan: free
     # --include=dev wajib: NODE_ENV=production membuat npm melewatkan devDependencies,
     # sehingga tsc tidak terpasang dan build gagal dalam hitungan detik.
-    buildCommand: npm ci --include=dev && npm run build
+    # Versi Node/npm dicetak agar log build bisa dibandingkan dengan hasil uji lokal.
+    buildCommand: node --version && npm --version && npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health/live
     envVars:
