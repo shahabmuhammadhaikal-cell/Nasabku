@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Nasabku — aplikasi silsilah keluarga: backend Express + Firestore, frontend tanpa framework.",
   "engines": {
-    "node": ">=23.4"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
