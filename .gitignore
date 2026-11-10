@@ -2,8 +2,8 @@ node_modules/
 dist/
 coverage/
 
-# Basis data SQLite lokal
-data/
+# Basis data SQLite lokal (hanya di akar repo; src/data/ berisi kode sumber)
+/data/
 *.db
 *.db-journal
 *.db-wal
