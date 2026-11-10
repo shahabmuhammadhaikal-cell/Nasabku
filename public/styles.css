@@ -16,6 +16,11 @@
   box-sizing: border-box;
 }
 
+/* Atribut hidden harus menang atas display pada kelas komponen (mis. .sisi-pengguna). */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
