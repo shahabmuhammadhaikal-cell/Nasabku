@@ -661,6 +661,77 @@ ul.pohon > li::before {
   display: none;
 }
 
+.pohon-gulir {
+  overflow-x: auto;
+  padding: 0.4rem 0.2rem 0.8rem;
+}
+
+.pohon-svg {
+  display: block;
+  max-width: none;
+}
+
+.simpul-pohon {
+  cursor: pointer;
+}
+
+.simpul-pohon rect {
+  fill: var(--kartu);
+  stroke: var(--garis);
+  stroke-width: 1.5;
+}
+
+.simpul-pohon circle {
+  fill: var(--hijau-muda);
+}
+
+.simpul-pohon:hover rect,
+.simpul-pohon.aktif rect {
+  stroke: var(--hijau);
+  fill: #f4faf7;
+}
+
+.awalan-pohon {
+  fill: var(--hijau);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nama-pohon {
+  fill: var(--teks);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.tahun-pohon {
+  fill: var(--samar);
+  font-size: 11px;
+}
+
+.statistik {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.15rem 1rem 0.75rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--garis);
+  border-radius: 999px;
+  background: var(--kartu);
+  color: var(--samar);
+  font-size: 0.78rem;
+}
+
+.chip strong {
+  color: var(--teks);
+  font-size: 0.84rem;
+}
+
 /* ------------------------------- Responsif ----------------------------- */
 
 @media (max-width: 900px) {

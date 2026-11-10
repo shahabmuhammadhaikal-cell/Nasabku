@@ -156,6 +156,7 @@ async function pilihRuang(ruang) {
   if (!ruang) {
     state.orang = [];
     gambarDaftarOrang();
+    $("statistik").hidden = true;
     return;
   }
   await muatOrang();
@@ -179,6 +180,76 @@ async function muatOrang() {
   const hasil = await api.orang(state.ruang.id, state.cari);
   state.orang = hasil.orang;
   gambarDaftarOrang();
+  await muatStatistik();
+}
+
+/* ------------------------------- Statistik ------------------------------- */
+
+async function muatStatistik() {
+  const wadah = $("statistik");
+  if (!wadah) return;
+  if (!state.ruang) {
+    wadah.hidden = true;
+    wadah.innerHTML = "";
+    return;
+  }
+  try {
+    const hasil = await api.statistik(state.ruang.id);
+    gambarStatistik(hasil.statistik);
+  } catch {
+    wadah.hidden = true;
+  }
+}
+
+function gambarStatistik(statistik) {
+  const wadah = $("statistik");
+  const chip = (nilai, label) =>
+    `<span class="chip"><strong>${esc(String(nilai))}</strong> ${esc(label)}</span>`;
+  const rentang = statistik.tahunTertua
+    ? `${statistik.tahunTertua}${
+        statistik.tahunTermuda && statistik.tahunTermuda !== statistik.tahunTertua
+          ? `–${statistik.tahunTermuda}`
+          : ""
+      }`
+    : null;
+
+  wadah.innerHTML = [
+    chip(statistik.jumlahOrang, "orang"),
+    chip(statistik.jumlahAngkatan, "angkatan"),
+    chip(statistik.jumlahRelasi, "relasi"),
+    chip(`${statistik.lakiLaki}/${statistik.perempuan}`, "L/P"),
+    chip(statistik.jumlahAkar, "akar"),
+    ...(rentang ? [chip(rentang, "rentang lahir")] : []),
+  ].join("");
+  wadah.hidden = statistik.jumlahOrang === 0;
+}
+
+async function tanganiEkspor() {
+  if (!state.ruang) return;
+  try {
+    const data = await api.ekspor(state.ruang.id);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const tautan = document.createElement("a");
+    tautan.href = URL.createObjectURL(blob);
+    tautan.download = `nasabku-${namaBerkas(state.ruang.nama)}.json`;
+    document.body.append(tautan);
+    tautan.click();
+    tautan.remove();
+    setTimeout(() => URL.revokeObjectURL(tautan.href), 2000);
+  } catch (galat) {
+    alert(galat.message);
+  }
+}
+
+function namaBerkas(nama) {
+  return (
+    nama
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "silsilah"
+  );
 }
 
 function gambarDaftarOrang() {
@@ -415,33 +486,91 @@ async function bukaRinci(orangId) {
   }
 }
 
+const UKURAN_POHON = { lebar: 158, tinggi: 54, jarakX: 24, jarakY: 66 };
+
+function potongTeks(teks, maks) {
+  return teks.length > maks ? `${teks.slice(0, maks - 1)}…` : teks;
+}
+
+/**
+ * Menggambar silsilah sebagai SVG: tiap angkatan satu baris, garis penghubung
+ * mengikuti rantai `lewat` dari server sehingga percabangan tetap terlihat.
+ */
+function gambarPohonSvg(simpul) {
+  const perAngkatan = new Map();
+  for (const s of simpul) {
+    const daftar = perAngkatan.get(s.kedalaman) ?? [];
+    daftar.push(s);
+    perAngkatan.set(s.kedalaman, daftar);
+  }
+
+  const angkatan = [...perAngkatan.keys()].sort((a, b) => a - b);
+  const lebarKolom = UKURAN_POHON.lebar + UKURAN_POHON.jarakX;
+  const kolomTerbanyak = Math.max(...angkatan.map((k) => perAngkatan.get(k).length));
+  const lebar = Math.max(kolomTerbanyak * lebarKolom - UKURAN_POHON.jarakX, UKURAN_POHON.lebar);
+  const tinggi = angkatan.length * (UKURAN_POHON.tinggi + UKURAN_POHON.jarakY) - UKURAN_POHON.jarakY;
+
+  const posisi = new Map();
+  for (const k of angkatan) {
+    const daftar = perAngkatan.get(k);
+    const total = daftar.length * lebarKolom - UKURAN_POHON.jarakX;
+    const mulai = (lebar - total) / 2;
+    daftar.forEach((s, i) => {
+      posisi.set(s.orang.id, {
+        x: mulai + i * lebarKolom,
+        y: k * (UKURAN_POHON.tinggi + UKURAN_POHON.jarakY),
+      });
+    });
+  }
+
+  const garis = [];
+  for (const s of simpul) {
+    if (s.lewat.length < 2) continue;
+    const induk = posisi.get(s.lewat[s.lewat.length - 2]);
+    const anak = posisi.get(s.orang.id);
+    if (!induk || !anak) continue;
+    const x1 = induk.x + UKURAN_POHON.lebar / 2;
+    const x2 = anak.x + UKURAN_POHON.lebar / 2;
+    const y1 = induk.y + UKURAN_POHON.tinggi;
+    const y2 = anak.y;
+    const tengah = (y1 + y2) / 2;
+    garis.push(
+      `<path d="M${x1} ${y1} C ${x1} ${tengah}, ${x2} ${tengah}, ${x2} ${y2}" fill="none" stroke="#c9d8d0" stroke-width="1.5" />`,
+    );
+  }
+
+  const kotak = simpul.map((s) => {
+    const p = posisi.get(s.orang.id);
+    const aktif = s.orang.id === state.terpilihId ? " aktif" : "";
+    const keterangan = tahunTeks(s.orang) || "—";
+    return `<g class="simpul-pohon${aktif}" data-buka="${esc(s.orang.id)}" transform="translate(${p.x} ${p.y})" role="button" tabindex="0">
+      <rect width="${UKURAN_POHON.lebar}" height="${UKURAN_POHON.tinggi}" rx="12" />
+      <circle cx="24" cy="${UKURAN_POHON.tinggi / 2}" r="14" />
+      <text x="24" y="${UKURAN_POHON.tinggi / 2 + 5}" text-anchor="middle" class="awalan-pohon">${esc(
+        s.orang.nama.slice(0, 1).toUpperCase(),
+      )}</text>
+      <text x="46" y="23" class="nama-pohon">${esc(potongTeks(s.orang.nama, 15))}</text>
+      <text x="46" y="39" class="tahun-pohon">${esc(keterangan)}</text>
+    </g>`;
+  });
+
+  return `<div class="pohon-gulir"><svg class="pohon-svg" width="${lebar}" height="${tinggi}" viewBox="0 0 ${lebar} ${tinggi}" role="img" aria-label="Pohon silsilah">${garis.join(
+    "",
+  )}${kotak.join("")}</svg></div>`;
+}
+
 async function gambarPohon(orangId) {
   const wadah = $("pohon");
   if (!wadah) return;
   try {
     const hasil = await api.silsilah(state.ruang.id, orangId, state.arah, 6);
-    const anakDari = new Map();
-    for (const simpul of hasil.simpul) {
-      if (simpul.lewat.length < 2) continue;
-      const induk = simpul.lewat[simpul.lewat.length - 2];
-      if (!anakDari.has(induk)) anakDari.set(induk, []);
-      anakDari.get(induk).push(simpul);
+    if (hasil.simpul.length <= 1) {
+      wadah.innerHTML = `<p class="keterangan kecil">Belum ada ${
+        state.arah === "turun" ? "keturunan" : "leluhur"
+      } yang tercatat.</p>`;
+      return;
     }
-
-    const bangun = (simpul) => {
-      const cabang = anakDari.get(simpul.orang.id) ?? [];
-      const keterangan = tahunTeks(simpul.orang);
-      const isi = `<button type="button" class="tautan-orang" data-buka="${esc(simpul.orang.id)}">${esc(simpul.orang.nama)}</button>${keterangan ? ` <span class="kecil samar">${esc(keterangan)}</span>` : ""}`;
-      return `<li>${isi}${cabang.length ? `<ul>${cabang.map(bangun).join("")}</ul>` : ""}</li>`;
-    };
-
-    wadah.innerHTML = `<ul class="pohon">${bangun(hasil.simpul[0])}</ul>`;
-    if (hasil.simpul.length === 1) {
-      wadah.insertAdjacentHTML(
-        "beforeend",
-        `<p class="keterangan kecil">Belum ada ${state.arah === "turun" ? "keturunan" : "leluhur"} yang tercatat.</p>`,
-      );
-    }
+    wadah.innerHTML = gambarPohonSvg(hasil.simpul);
   } catch (galat) {
     wadah.innerHTML = `<p class="keterangan kecil">${esc(galat.message)}</p>`;
   }
@@ -457,6 +586,7 @@ function pasangPeristiwa() {
   $("form-orang").addEventListener("submit", simpanOrang);
   $("batal-orang").addEventListener("click", tutupFormOrang);
   $("tombol-tambah").addEventListener("click", () => bukaFormOrang(null));
+  $("tombol-ekspor").addEventListener("click", tanganiEkspor);
   $("tombol-keluar").addEventListener("click", async () => {
     await api.keluar();
     state.pengguna = null;

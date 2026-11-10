@@ -65,6 +65,8 @@ export const api = {
   ruangKerja: () => panggil("/workspaces"),
   buatRuangKerja: (nama) => panggil("/workspaces", { metode: "POST", badan: { nama } }),
   hapusRuangKerja: (id) => panggil(`/workspaces/${id}`, { metode: "DELETE" }),
+  statistik: (id) => panggil(`/workspaces/${id}/stats`),
+  ekspor: (id) => panggil(`/workspaces/${id}/export`),
 
   orang: (ruangId, q = "") =>
     panggil(`/workspaces/${ruangId}/persons${q ? `?q=${encodeURIComponent(q)}` : ""}`),
