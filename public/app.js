@@ -72,14 +72,16 @@ function pasangTab() {
 
 async function tanganiMasuk(peristiwa) {
   peristiwa.preventDefault();
-  const data = new FormData(peristiwa.currentTarget);
-  const tombol = peristiwa.currentTarget.querySelector("button[type=submit]");
+  // currentTarget bernilai null setelah await, jadi formulir disimpan lebih dulu.
+  const formulir = peristiwa.currentTarget;
+  const data = new FormData(formulir);
+  const tombol = formulir.querySelector("button[type=submit]");
   tombol.disabled = true;
   pesan($("pesan-masuk"), "");
   try {
     const hasil = await api.masuk({ email: String(data.get("email") ?? ""), sandi: String(data.get("sandi") ?? "") });
     state.pengguna = hasil.pengguna;
-    peristiwa.currentTarget.reset();
+    formulir.reset();
     await bukaAplikasi();
   } catch (galat) {
     pesan($("pesan-masuk"), galat.message);
@@ -90,8 +92,10 @@ async function tanganiMasuk(peristiwa) {
 
 async function tanganiDaftar(peristiwa) {
   peristiwa.preventDefault();
-  const data = new FormData(peristiwa.currentTarget);
-  const tombol = peristiwa.currentTarget.querySelector("button[type=submit]");
+  // currentTarget bernilai null setelah await, jadi formulir disimpan lebih dulu.
+  const formulir = peristiwa.currentTarget;
+  const data = new FormData(formulir);
+  const tombol = formulir.querySelector("button[type=submit]");
   tombol.disabled = true;
   pesan($("pesan-masuk"), "");
   try {
@@ -101,7 +105,7 @@ async function tanganiDaftar(peristiwa) {
       sandi: String(data.get("sandi") ?? ""),
     });
     state.pengguna = hasil.pengguna;
-    peristiwa.currentTarget.reset();
+    formulir.reset();
     await bukaAplikasi();
   } catch (galat) {
     pesan($("pesan-masuk"), galat.message);
