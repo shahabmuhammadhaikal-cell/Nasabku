@@ -51,8 +51,10 @@ async function panggil(jalur, { metode = "GET", badan } = {}) {
 const badanOrang = (nilai) => ({
   nama: nilai.nama,
   jenisKelamin: nilai.jenisKelamin,
-  tahunLahir: nilai.tahunLahir === "" ? null : nilai.tahunLahir,
-  tahunWafat: nilai.tahunWafat === "" ? null : nilai.tahunWafat,
+  tanggalLahir: nilai.tanggalLahir === "" ? null : nilai.tanggalLahir,
+  tempatLahir: nilai.tempatLahir === "" ? null : nilai.tempatLahir,
+  tanggalWafat: nilai.tanggalWafat === "" ? null : nilai.tanggalWafat,
+  tempatWafat: nilai.tempatWafat === "" ? null : nilai.tempatWafat,
   catatan: nilai.catatan === "" ? null : nilai.catatan,
 });
 

@@ -17,3 +17,6 @@ coverage/
 # Perkakas
 .DS_Store
 *.log
+
+# Tangkapan layar & berkas kerja
+/artifacts/

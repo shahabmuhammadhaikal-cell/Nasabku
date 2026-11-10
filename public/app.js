@@ -22,10 +22,50 @@ const esc = (nilai) =>
     "'": "&#39;",
   })[huruf]);
 
+const BULAN_PANJANG = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
+/** Tanggal bertingkat ("1954", "1954-06", "1954-06-12") menjadi teks Indonesia. */
+function formatTanggal(tanggal) {
+  if (!tanggal) return "";
+  const cocok = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(tanggal);
+  if (!cocok) return tanggal;
+  const tahun = Number(cocok[1]);
+  if (!cocok[2]) return String(tahun);
+  const bulan = BULAN_PANJANG[Number(cocok[2]) - 1] ?? "";
+  if (!cocok[3]) return `${bulan} ${tahun}`;
+  return `${Number(cocok[3])} ${bulan} ${tahun}`;
+}
+
 function tahunTeks(orang) {
-  if (!orang.tahunLahir && !orang.tahunWafat) return "";
-  const lahir = orang.tahunLahir ?? "?";
-  return orang.tahunWafat ? `${lahir}–${orang.tahunWafat}` : `lahir ${lahir}`;
+  const lahir = formatTanggal(orang.tanggalLahir);
+  const wafat = formatTanggal(orang.tanggalWafat);
+  if (!lahir && !wafat) return "";
+  if (wafat) return `${lahir || "?"} – ${wafat}`;
+  return `lahir ${lahir}`;
+}
+
+function faktaOrang(orang) {
+  const baris = [
+    ["Jenis kelamin", labelKelamin[orang.jenisKelamin] ?? "Belum diketahui"],
+    ["Lahir", [formatTanggal(orang.tanggalLahir), orang.tempatLahir].filter(Boolean).join(" · ") || "—"],
+    ["Wafat", [formatTanggal(orang.tanggalWafat), orang.tempatWafat].filter(Boolean).join(" · ") || "—"],
+  ];
+  return `<dl class="rinci-fakta">${baris
+    .map(([label, nilai]) => `<div><dt>${esc(label)}</dt><dd>${esc(nilai)}</dd></div>`)
+    .join("")}</dl>`;
 }
 
 const labelKelamin = { L: "Laki-laki", P: "Perempuan", U: "Belum diketahui" };
@@ -267,7 +307,7 @@ function gambarDaftarOrang() {
     tombol.className = "kartu-orang";
     tombol.classList.toggle("aktif", orang.id === state.terpilihId);
     tombol.innerHTML = `
-      <span class="awalan">${esc(orang.nama.slice(0, 1).toUpperCase())}</span>
+      <span class="awalan awalan-${orang.jenisKelamin.toLowerCase()}">${esc(orang.nama.slice(0, 1).toUpperCase())}</span>
       <span class="isi-orang">
         <strong>${esc(orang.nama)}</strong>
         <small>${esc([tahunTeks(orang), labelKelamin[orang.jenisKelamin]].filter(Boolean).join(" · "))}</small>
@@ -286,8 +326,10 @@ function bukaFormOrang(orang) {
   $("judul-form-orang").textContent = orang ? "Ubah data orang" : "Tambah orang";
   form.elements.nama.value = orang?.nama ?? "";
   form.elements.jenisKelamin.value = orang?.jenisKelamin ?? "U";
-  form.elements.tahunLahir.value = orang?.tahunLahir ?? "";
-  form.elements.tahunWafat.value = orang?.tahunWafat ?? "";
+  form.elements.tanggalLahir.value = orang?.tanggalLahir ?? "";
+  form.elements.tempatLahir.value = orang?.tempatLahir ?? "";
+  form.elements.tanggalWafat.value = orang?.tanggalWafat ?? "";
+  form.elements.tempatWafat.value = orang?.tempatWafat ?? "";
   form.elements.catatan.value = orang?.catatan ?? "";
   state.modeForm = orang ? orang.id : "tambah";
   pesan($("pesan-orang"), "");
@@ -308,8 +350,10 @@ async function simpanOrang(peristiwa) {
   const data = {
     nama: String(form.elements.nama.value ?? "").trim(),
     jenisKelamin: String(form.elements.jenisKelamin.value ?? "U"),
-    tahunLahir: form.elements.tahunLahir.value,
-    tahunWafat: form.elements.tahunWafat.value,
+    tanggalLahir: form.elements.tanggalLahir.value,
+    tempatLahir: form.elements.tempatLahir.value,
+    tanggalWafat: form.elements.tanggalWafat.value,
+    tempatWafat: form.elements.tempatWafat.value,
     catatan: String(form.elements.catatan.value ?? "").trim(),
   };
   const tombol = form.querySelector("button[type=submit]");
@@ -362,10 +406,11 @@ async function bukaRinci(orangId) {
     <div class="rinci-kepala">
       <div>
         <h3>${esc(orang.nama)}</h3>
-        <p class="keterangan kecil">${esc([tahunTeks(orang), labelKelamin[orang.jenisKelamin]].filter(Boolean).join(" · "))}</p>
+        <p class="keterangan kecil">${esc(labelKelamin[orang.jenisKelamin] ?? "Belum diketahui")}</p>
       </div>
       <button type="button" class="tombol tombol-samar kecil" data-aksi="tutup" aria-label="Tutup">✕</button>
     </div>
+    ${faktaOrang(orang)}
     ${orang.catatan ? `<p class="rinci-catatan">${esc(orang.catatan)}</p>` : ""}
 
     <div class="tombol-baris">

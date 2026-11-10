@@ -10,15 +10,18 @@ describe("orang", () => {
     const tambah = await agen.post(`/api/v1/workspaces/${ruangId}/persons`).send({
       nama: "Siti Aminah",
       jenisKelamin: "P",
-      tahunLahir: 1954,
+      tanggalLahir: "1954-06-12",
+      tempatLahir: "Medan",
       catatan: "Dari Medan",
     });
     expect(tambah.status).toBe(201);
     expect(tambah.body.orang).toMatchObject({
       nama: "Siti Aminah",
       jenisKelamin: "P",
-      tahunLahir: 1954,
-      tahunWafat: null,
+      tanggalLahir: "1954-06-12",
+      tempatLahir: "Medan",
+      tanggalWafat: null,
+      tempatWafat: null,
       catatan: "Dari Medan",
     });
 
@@ -29,26 +32,52 @@ describe("orang", () => {
 
     const ubah = await agen
       .patch(`/api/v1/workspaces/${ruangId}/persons/${id}`)
-      .send({ nama: "Siti Aminah Nasution", tahunWafat: 2020 });
+      .send({ nama: "Siti Aminah Nasution", tanggalWafat: "2020-03-08", tempatWafat: "Bandung" });
     expect(ubah.status).toBe(200);
     expect(ubah.body.orang.nama).toBe("Siti Aminah Nasution");
-    expect(ubah.body.orang.tahunWafat).toBe(2020);
-    expect(ubah.body.orang.tahunLahir).toBe(1954);
+    expect(ubah.body.orang.tanggalWafat).toBe("2020-03-08");
+    expect(ubah.body.orang.tempatWafat).toBe("Bandung");
+    expect(ubah.body.orang.tanggalLahir).toBe("1954-06-12");
 
     expect((await agen.delete(`/api/v1/workspaces/${ruangId}/persons/${id}`)).status).toBe(204);
     expect((await agen.get(`/api/v1/workspaces/${ruangId}/persons/${id}`)).status).toBe(404);
   });
 
-  it("menolak tahun wafat yang lebih awal dari tahun lahir", async () => {
+  it("menolak tanggal wafat yang lebih awal dari tanggal lahir", async () => {
     const { app } = buatAplikasiUji();
     const { agen } = await daftar(app);
     const ruangId = await buatRuang(agen);
 
     const respons = await agen
       .post(`/api/v1/workspaces/${ruangId}/persons`)
-      .send({ nama: "Tidak Mungkin", tahunLahir: 1990, tahunWafat: 1980 });
+      .send({ nama: "Tidak Mungkin", tanggalLahir: "1990-05-01", tanggalWafat: "1980-01-01" });
     expect(respons.status).toBe(422);
-    expect(respons.body.error.rincian.field).toBe("tahunWafat");
+    expect(respons.body.error.rincian.field).toBe("tanggalWafat");
+  });
+
+  it("menerima tanggal bertingkat dan menolak format yang tidak sah", async () => {
+    const { app } = buatAplikasiUji();
+    const { agen } = await daftar(app);
+    const ruangId = await buatRuang(agen);
+
+    const hanyaTahun = await agen
+      .post(`/api/v1/workspaces/${ruangId}/persons`)
+      .send({ nama: "Tanpa Tanggal Pasti", tanggalLahir: "1940" });
+    expect(hanyaTahun.status).toBe(201);
+    expect(hanyaTahun.body.orang.tanggalLahir).toBe("1940");
+
+    const tahunBulan = await agen
+      .post(`/api/v1/workspaces/${ruangId}/persons`)
+      .send({ nama: "Setengah Tahun", tanggalLahir: "1940-07" });
+    expect(tahunBulan.body.orang.tanggalLahir).toBe("1940-07");
+
+    for (const salah of ["1940-13", "1940-02-31", "12-06-1940", "1940/06/12"]) {
+      const respons = await agen
+        .post(`/api/v1/workspaces/${ruangId}/persons`)
+        .send({ nama: "Salah Format", tanggalLahir: salah });
+      expect(respons.status).toBe(422);
+      expect(respons.body.error.rincian.field).toBe("tanggalLahir");
+    }
   });
 
   it("mewajibkan nama", async () => {

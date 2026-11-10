@@ -1,4 +1,5 @@
 import type { Orang, Relasi } from "../data/tipe.js";
+import { tahunDari } from "./tanggal.js";
 
 export interface StatistikSilsilah {
   jumlahOrang: number;
@@ -64,8 +65,8 @@ export function hitungStatistik(
   }
 
   const tahun = semuaOrang
-    .map((orang) => orang.tahunLahir)
-    .filter((nilai): nilai is number => typeof nilai === "number" && Number.isFinite(nilai));
+    .map((orang) => tahunDari(orang.tanggalLahir))
+    .filter((nilai): nilai is number => nilai !== null);
 
   let lakiLaki = 0;
   let perempuan = 0;

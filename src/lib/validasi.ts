@@ -1,4 +1,5 @@
 import { galat } from "./kesalahan.js";
+import { parseTanggal } from "./tanggal.js";
 
 const POLA_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -44,18 +45,22 @@ export function teksOpsional(
   return bersih.length === 0 ? null : bersih;
 }
 
-export function tahunOpsional(
+export function tanggalOpsional(
   badan: Record<string, unknown>,
   kunci: string,
   label: string,
-): number | null | undefined {
+): string | null | undefined {
   if (!(kunci in badan) || badan[kunci] === undefined) return undefined;
   const nilai = badan[kunci];
   if (nilai === null || nilai === "") return null;
-  const angka = typeof nilai === "number" ? nilai : Number(nilai);
-  if (!Number.isInteger(angka)) tolak(label, kunci, "harus berupa bilangan bulat tahun.");
-  if (angka < 1 || angka > 2200) tolak(label, kunci, "harus berada di antara 1 dan 2200.");
-  return angka;
+  if (typeof nilai !== "string") {
+    tolak(label, kunci, "harus berupa teks tanggal (1954, 1954-06, atau 1954-06-12).");
+  }
+  const tanggal = parseTanggal(nilai);
+  if (!tanggal) {
+    tolak(label, kunci, "harus berformat 1954, 1954-06, atau 1954-06-12 yang valid.");
+  }
+  return tanggal;
 }
 
 export function emailWajib(badan: Record<string, unknown>, kunci = "email"): string {

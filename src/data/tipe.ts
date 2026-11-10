@@ -26,8 +26,11 @@ export interface Orang {
   ruangKerjaId: string;
   nama: string;
   jenisKelamin: JenisKelamin;
-  tahunLahir: number | null;
-  tahunWafat: number | null;
+  /** Tanggal bertingkat: "1954", "1954-06", atau "1954-06-12". */
+  tanggalLahir: string | null;
+  tempatLahir: string | null;
+  tanggalWafat: string | null;
+  tempatWafat: string | null;
   catatan: string | null;
   dibuatPada: string;
   diperbaruiPada: string;
@@ -36,8 +39,10 @@ export interface Orang {
 export interface DataOrang {
   nama: string;
   jenisKelamin: JenisKelamin;
-  tahunLahir: number | null;
-  tahunWafat: number | null;
+  tanggalLahir: string | null;
+  tempatLahir: string | null;
+  tanggalWafat: string | null;
+  tempatWafat: string | null;
   catatan: string | null;
 }
 
@@ -55,11 +60,6 @@ export function teks(nilai: unknown): string {
 
 export function teksAtauNull(nilai: unknown): string | null {
   return typeof nilai === "string" ? nilai : null;
-}
-
-export function angkaAtauNull(nilai: unknown): number | null {
-  const angka = typeof nilai === "number" ? nilai : nilai === null || nilai === undefined ? null : Number(nilai);
-  return angka !== null && Number.isFinite(angka) ? angka : null;
 }
 
 export function kePengguna(dokumen: Dokumen): PenggunaPublik {
@@ -89,13 +89,19 @@ export function keRuangKerja(dokumen: Dokumen): RuangKerja {
 export function keOrang(dokumen: Dokumen): Orang {
   const { data } = dokumen;
   const jk = teks(data.jenisKelamin);
+  // Dokumen lama hanya menyimpan tahun (angka); dibaca sebagai tanggal bertingkat.
+  const tahunLama = (nilai: unknown): string | null =>
+    typeof nilai === "number" && Number.isFinite(nilai) ? String(nilai) : null;
+
   return {
     id: dokumen.id,
     ruangKerjaId: teks(data.ruangKerjaId),
     nama: teks(data.nama),
     jenisKelamin: jk === "L" || jk === "P" ? jk : "U",
-    tahunLahir: angkaAtauNull(data.tahunLahir),
-    tahunWafat: angkaAtauNull(data.tahunWafat),
+    tanggalLahir: teksAtauNull(data.tanggalLahir) || tahunLama(data.tahunLahir),
+    tempatLahir: teksAtauNull(data.tempatLahir),
+    tanggalWafat: teksAtauNull(data.tanggalWafat) || tahunLama(data.tahunWafat),
+    tempatWafat: teksAtauNull(data.tempatWafat),
     catatan: teksAtauNull(data.catatan),
     dibuatPada: teks(data.dibuatPada),
     diperbaruiPada: teks(data.diperbaruiPada),

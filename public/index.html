@@ -91,11 +91,14 @@
           <div class="isi-panel">
             <div class="kolom-daftar">
               <form id="form-orang" class="kartu-form" hidden novalidate>
-                <h3 id="judul-form-orang">Tambah orang</h3>
+                <header class="form-kepala">
+                  <h3 id="judul-form-orang">Tambah orang</h3>
+                  <p class="keterangan kecil">Semakin lengkap, semakin mudah ditelusuri generasi berikutnya.</p>
+                </header>
                 <div class="baris">
                   <label>
-                    Nama
-                    <input type="text" name="nama" required maxlength="120" placeholder="Nama lengkap" />
+                    Nama lengkap
+                    <input type="text" name="nama" required maxlength="120" placeholder="mis. Siti Aminah Nasution" />
                   </label>
                   <label>
                     Jenis kelamin
@@ -106,19 +109,49 @@
                     </select>
                   </label>
                 </div>
-                <div class="baris">
-                  <label>
-                    Tahun lahir
-                    <input type="number" name="tahunLahir" min="1" max="2200" placeholder="mis. 1954" />
-                  </label>
-                  <label>
-                    Tahun wafat
-                    <input type="number" name="tahunWafat" min="1" max="2200" placeholder="kosongkan bila masih hidup" />
-                  </label>
+
+                <div class="kelompok">
+                  <h4>Kelahiran</h4>
+                  <div class="baris">
+                    <label>
+                      Tanggal lahir
+                      <input
+                        type="text"
+                        name="tanggalLahir"
+                        inputmode="numeric"
+                        maxlength="10"
+                        placeholder="1954-06-12"
+                        aria-describedby="petunjuk-tanggal-lahir"
+                      />
+                      <small class="petunjuk" id="petunjuk-tanggal-lahir"
+                        >Tahun saja (1954) atau tahun-bulan (1954-06) cukup bila tanggal lengkap belum diketahui.</small
+                      >
+                    </label>
+                    <label>
+                      Tempat lahir
+                      <input type="text" name="tempatLahir" maxlength="120" placeholder="mis. Medan" />
+                    </label>
+                  </div>
                 </div>
+
+                <div class="kelompok">
+                  <h4>Wafat</h4>
+                  <div class="baris">
+                    <label>
+                      Tanggal wafat
+                      <input type="text" name="tanggalWafat" inputmode="numeric" maxlength="10" placeholder="2020-03-08" />
+                      <small class="petunjuk">Kosongkan bila masih hidup.</small>
+                    </label>
+                    <label>
+                      Tempat wafat
+                      <input type="text" name="tempatWafat" maxlength="120" placeholder="mis. Bandung" />
+                    </label>
+                  </div>
+                </div>
+
                 <label>
                   Catatan
-                  <textarea name="catatan" rows="2" maxlength="2000" placeholder="Kampung asal, pekerjaan, kisah singkat…"></textarea>
+                  <textarea name="catatan" rows="3" maxlength="2000" placeholder="Pekerjaan, kampung asal, kisah singkat…"></textarea>
                 </label>
                 <p class="pesan" id="pesan-orang" role="alert" hidden></p>
                 <div class="tombol-baris">

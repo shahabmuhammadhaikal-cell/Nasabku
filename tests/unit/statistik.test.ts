@@ -7,8 +7,10 @@ const orang = (id: string, tambahan: Partial<Orang> = {}): Orang => ({
   ruangKerjaId: "ruang-1",
   nama: id,
   jenisKelamin: "U",
-  tahunLahir: null,
-  tahunWafat: null,
+  tanggalLahir: null,
+  tempatLahir: null,
+  tanggalWafat: null,
+  tempatWafat: null,
   catatan: null,
   dibuatPada: "2026-01-01T00:00:00.000Z",
   diperbaruiPada: "2026-01-01T00:00:00.000Z",
@@ -42,9 +44,9 @@ describe("statistik silsilah", () => {
   it("menghitung tiga angkatan, akar, daun, dan rentang tahun", () => {
     const statistik = hitungStatistik(
       [
-        orang("kakek", { jenisKelamin: "L", tahunLahir: 1940 }),
-        orang("ayah", { jenisKelamin: "L", tahunLahir: 1968 }),
-        orang("cucu", { jenisKelamin: "P", tahunLahir: 1998 }),
+        orang("kakek", { jenisKelamin: "L", tanggalLahir: "1940-02-29" }),
+        orang("ayah", { jenisKelamin: "L", tanggalLahir: "1968" }),
+        orang("cucu", { jenisKelamin: "P", tanggalLahir: "1998-11-30" }),
       ],
       [relasi("kakek", "ayah"), relasi("ayah", "cucu")],
     );

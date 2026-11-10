@@ -5,7 +5,7 @@ import {
   emailWajib,
   jenisKelaminWajib,
   kataSandiWajib,
-  tahunOpsional,
+  tanggalOpsional,
   teksOpsional,
   teksWajib,
 } from "../../src/lib/validasi.js";
@@ -41,14 +41,24 @@ describe("validasi", () => {
     expect(teksOpsional({ catatan: " asal " }, "catatan", "Catatan")).toBe("asal");
   });
 
-  it("memvalidasi tahun", () => {
-    expect(tahunOpsional({ tahunLahir: 1954 }, "tahunLahir", "Tahun lahir")).toBe(1954);
-    expect(tahunOpsional({ tahunLahir: "1954" }, "tahunLahir", "Tahun lahir")).toBe(1954);
-    expect(tahunOpsional({ tahunLahir: "" }, "tahunLahir", "Tahun lahir")).toBeNull();
-    expect(tahunOpsional({}, "tahunLahir", "Tahun lahir")).toBeUndefined();
-    expect(tangkap(() => tahunOpsional({ tahunLahir: 0 }, "tahunLahir", "Tahun lahir")).status).toBe(422);
-    expect(tangkap(() => tahunOpsional({ tahunLahir: 3000 }, "tahunLahir", "Tahun lahir")).status).toBe(422);
-    expect(tangkap(() => tahunOpsional({ tahunLahir: 19.5 }, "tahunLahir", "Tahun lahir")).status).toBe(422);
+  it("memvalidasi tanggal bertingkat", () => {
+    expect(tanggalOpsional({ tanggalLahir: "1954-06-12" }, "tanggalLahir", "Tanggal lahir")).toBe(
+      "1954-06-12",
+    );
+    expect(tanggalOpsional({ tanggalLahir: "1954-06" }, "tanggalLahir", "Tanggal lahir")).toBe(
+      "1954-06",
+    );
+    expect(tanggalOpsional({ tanggalLahir: " 1954 " }, "tanggalLahir", "Tanggal lahir")).toBe("1954");
+    expect(tanggalOpsional({ tanggalLahir: "" }, "tanggalLahir", "Tanggal lahir")).toBeNull();
+    expect(tanggalOpsional({ tanggalLahir: null }, "tanggalLahir", "Tanggal lahir")).toBeNull();
+    expect(tanggalOpsional({}, "tanggalLahir", "Tanggal lahir")).toBeUndefined();
+    expect(tangkap(() => tanggalOpsional({ tanggalLahir: 1954 }, "tanggalLahir", "Tanggal lahir")).status).toBe(
+      422,
+    );
+    expect(tangkap(() => tanggalOpsional({ tanggalLahir: "1954-13" }, "tanggalLahir", "T")).status).toBe(422);
+    expect(tangkap(() => tanggalOpsional({ tanggalLahir: "1954-02-30" }, "tanggalLahir", "T")).status).toBe(
+      422,
+    );
   });
 
   it("hanya menerima jenis kelamin L, P, atau U", () => {

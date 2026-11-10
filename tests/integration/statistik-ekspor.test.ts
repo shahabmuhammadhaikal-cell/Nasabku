@@ -5,9 +5,9 @@ async function isiTigaAngkatan(
   agen: ReturnType<typeof daftar> extends Promise<infer T> ? (T extends { agen: infer A } ? A : never) : never,
   ruangId: string,
 ): Promise<{ kakek: string; ayah: string; cucu: string }> {
-  const kakek = await buatOrang(agen, ruangId, "Kakek Uji", { tahunLahir: 1940 });
-  const ayah = await buatOrang(agen, ruangId, "Ayah Uji", { tahunLahir: 1968 });
-  const cucu = await buatOrang(agen, ruangId, "Cucu Uji", { jenisKelamin: "P", tahunLahir: 1998 });
+  const kakek = await buatOrang(agen, ruangId, "Kakek Uji", { tanggalLahir: "1940-04-02" });
+  const ayah = await buatOrang(agen, ruangId, "Ayah Uji", { tanggalLahir: "1968" });
+  const cucu = await buatOrang(agen, ruangId, "Cucu Uji", { jenisKelamin: "P", tanggalLahir: "1998-11" });
   await agen.post(`/api/v1/workspaces/${ruangId}/relations`).send({ orangTuaId: kakek, anakId: ayah });
   await agen.post(`/api/v1/workspaces/${ruangId}/relations`).send({ orangTuaId: ayah, anakId: cucu });
   return { kakek, ayah, cucu };

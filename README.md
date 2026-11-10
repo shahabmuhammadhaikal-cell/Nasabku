@@ -69,7 +69,7 @@ pengguna/{penggunaId}            { email, nama, sandiHash, dibuatPada }
 emailIndex/{email}               { penggunaId }              ← keunikan email
 sesi/{sha256(token)}             { penggunaId, dibuatPada, kedaluwarsaPada }
 ruangKerja/{ruangKerjaId}        { nama, pemilikId, dibuatPada }
-ruangKerja/{id}/orang/{orangId}  { nama, jenisKelamin, tahunLahir, tahunWafat, catatan, ... }
+ruangKerja/{id}/orang/{orangId}  { nama, jenisKelamin, tanggalLahir, tempatLahir, tanggalWafat, tempatWafat, catatan, ... }
 ruangKerja/{id}/relasi/{orangTuaId_anakId}  { orangTuaId, anakId, dibuatPada }
 ```
 

@@ -5,15 +5,17 @@ import { galat } from "../lib/kesalahan.js";
 import {
   badanObjek,
   jenisKelaminWajib,
-  tahunOpsional,
+  tanggalOpsional,
   teksOpsional,
   teksWajib,
 } from "../lib/validasi.js";
 
-function periksaTahun(tahunLahir: number | null, tahunWafat: number | null): void {
-  if (tahunLahir !== null && tahunWafat !== null && tahunWafat < tahunLahir) {
-    throw galat(422, "VALIDASI_GAGAL", "Tahun wafat tidak boleh lebih awal dari tahun lahir.", {
-      field: "tahunWafat",
+function periksaTanggal(tanggalLahir: string | null, tanggalWafat: string | null): void {
+  // Formatnya ISO bertingkat, jadi perbandingan teks biasa sudah benar
+  // ("1980" < "1980-05" < "1990").
+  if (tanggalLahir && tanggalWafat && tanggalWafat < tanggalLahir) {
+    throw galat(422, "VALIDASI_GAGAL", "Tanggal wafat tidak boleh lebih awal dari tanggal lahir.", {
+      field: "tanggalWafat",
     });
   }
 }
@@ -21,28 +23,38 @@ function periksaTahun(tahunLahir: number | null, tahunWafat: number | null): voi
 function dataBaru(badan: Record<string, unknown>): DataOrang {
   const nama = teksWajib(badan, "nama", "Nama", 1, 120);
   const jenisKelamin = jenisKelaminWajib(badan);
-  const tahunLahir = tahunOpsional(badan, "tahunLahir", "Tahun lahir") ?? null;
-  const tahunWafat = tahunOpsional(badan, "tahunWafat", "Tahun wafat") ?? null;
+  const tanggalLahir = tanggalOpsional(badan, "tanggalLahir", "Tanggal lahir") ?? null;
+  const tempatLahir = teksOpsional(badan, "tempatLahir", "Tempat lahir", 120) ?? null;
+  const tanggalWafat = tanggalOpsional(badan, "tanggalWafat", "Tanggal wafat") ?? null;
+  const tempatWafat = teksOpsional(badan, "tempatWafat", "Tempat wafat", 120) ?? null;
   const catatan = teksOpsional(badan, "catatan", "Catatan") ?? null;
-  periksaTahun(tahunLahir, tahunWafat);
-  return { nama, jenisKelamin, tahunLahir, tahunWafat, catatan };
+  periksaTanggal(tanggalLahir, tanggalWafat);
+  return { nama, jenisKelamin, tanggalLahir, tempatLahir, tanggalWafat, tempatWafat, catatan };
 }
 
 function dataGabungan(badan: Record<string, unknown>, lama: Orang): DataOrang {
   const nama = "nama" in badan ? teksWajib(badan, "nama", "Nama", 1, 120) : lama.nama;
   const jenisKelamin = "jenisKelamin" in badan ? jenisKelaminWajib(badan) : lama.jenisKelamin;
-  const tahunLahir =
-    "tahunLahir" in badan
-      ? (tahunOpsional(badan, "tahunLahir", "Tahun lahir") ?? null)
-      : lama.tahunLahir;
-  const tahunWafat =
-    "tahunWafat" in badan
-      ? (tahunOpsional(badan, "tahunWafat", "Tahun wafat") ?? null)
-      : lama.tahunWafat;
+  const tanggalLahir =
+    "tanggalLahir" in badan
+      ? (tanggalOpsional(badan, "tanggalLahir", "Tanggal lahir") ?? null)
+      : lama.tanggalLahir;
+  const tempatLahir =
+    "tempatLahir" in badan
+      ? (teksOpsional(badan, "tempatLahir", "Tempat lahir", 120) ?? null)
+      : lama.tempatLahir;
+  const tanggalWafat =
+    "tanggalWafat" in badan
+      ? (tanggalOpsional(badan, "tanggalWafat", "Tanggal wafat") ?? null)
+      : lama.tanggalWafat;
+  const tempatWafat =
+    "tempatWafat" in badan
+      ? (teksOpsional(badan, "tempatWafat", "Tempat wafat", 120) ?? null)
+      : lama.tempatWafat;
   const catatan =
     "catatan" in badan ? (teksOpsional(badan, "catatan", "Catatan") ?? null) : lama.catatan;
-  periksaTahun(tahunLahir, tahunWafat);
-  return { nama, jenisKelamin, tahunLahir, tahunWafat, catatan };
+  periksaTanggal(tanggalLahir, tanggalWafat);
+  return { nama, jenisKelamin, tanggalLahir, tempatLahir, tanggalWafat, tempatWafat, catatan };
 }
 
 export function ruteOrang(penyimpanan: Penyimpanan): Router {
