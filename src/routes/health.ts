@@ -46,6 +46,9 @@ export function ruteKesehatan(penyimpanan: Penyimpanan, konfigurasi: Konfigurasi
       database,
       penyimpanan: "firestore",
       versi: konfigurasi.versiAplikasi,
+      ...(database === "belum dikonfigurasi"
+        ? { petunjukKredensial: konfigurasi.petunjukKredensial }
+        : {}),
       ...(konfigurasi.firestoreMasalah ? { catatan: konfigurasi.firestoreMasalah } : {}),
     });
   });

@@ -18,6 +18,15 @@ export interface Konfigurasi {
   /** null bila Firestore belum dikonfigurasi; aplikasi tetap hidup dan rute data menjawab 503. */
   firestore: KonfigurasiFirestore | null;
   firestoreMasalah?: string;
+  /** Hanya penanda ada/tidaknya variabel lingkungan — tidak pernah memuat nilainya. */
+  petunjukKredensial: PetunjukKredensial;
+}
+
+export interface PetunjukKredensial {
+  serviceAccountJson: boolean;
+  projectId: boolean;
+  clientEmail: boolean;
+  privateKey: boolean;
 }
 
 function angka(nilai: string | undefined, bawaan: number): number {
@@ -102,6 +111,16 @@ export function muatKonfigurasi(env: NodeJS.ProcessEnv = process.env): Konfigura
     umurSesiHari: angka(env.SESSION_TTL_HARI, 30),
     kueAman: env.COOKIE_SECURE === "true",
     versiAplikasi: "1.0.0",
+    petunjukKredensial: {
+      serviceAccountJson: Boolean(
+        (env.FIREBASE_SERVICE_ACCOUNT_JSON ?? env.FIREBASE_SERVICE_ACCOUNT ?? "").trim(),
+      ),
+      projectId: Boolean(
+        (env.FIREBASE_PROJECT_ID ?? env.FIRESTORE_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT ?? "").trim(),
+      ),
+      clientEmail: Boolean((env.FIREBASE_CLIENT_EMAIL ?? "").trim()),
+      privateKey: Boolean((env.FIREBASE_PRIVATE_KEY ?? "").trim()),
+    },
     firestore,
     ...(firestoreMasalah ? { firestoreMasalah } : {}),
     ...(firestoreMasalah ? { firestore: null } : {}),
