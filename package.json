@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "deploy:rules": "npx --yes firebase-tools@latest deploy --only firestore:rules --project nasabku-prod",
     "test": "vitest run",
     "test:watch": "vitest"
   },

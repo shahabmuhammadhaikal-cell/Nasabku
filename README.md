@@ -122,8 +122,11 @@ Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peram
 5. **Terapkan.**
 
    ```bash
-   npx firebase-tools@latest deploy --only firestore:rules --project nasabku-prod
+   npm run deploy:rules
    ```
+
+   Skrip itu menjalankan `npx firebase-tools@latest deploy --only firestore:rules --project nasabku-prod`
+   (lihat `package.json`), jadi proyek dan berkas aturannya tidak perlu diketik ulang.
 
    Keluaran yang diharapkan: `✔ firestore: released rules firestore.rules to cloud.firestore`.
 6. **Periksa hasilnya.**
