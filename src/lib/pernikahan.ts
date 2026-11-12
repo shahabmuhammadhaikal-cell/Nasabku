@@ -48,8 +48,3 @@ export function bandingkanPernikahan(a: Pasangan, b: Pasangan): number {
     a.id.localeCompare(b.id)
   );
 }
-
-/** Urutan pernikahan `pasangan` dari sudut pandang `orangId` (1 = pertama). */
-export function urutanBagi(pasangan: PasanganBerurut, orangId: string): number {
-  return pasangan.orangAId === orangId ? pasangan.urutanA : pasangan.urutanB;
-}

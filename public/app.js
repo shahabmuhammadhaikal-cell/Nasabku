@@ -448,6 +448,10 @@ const tahunLahir = (orang) => {
   return Number.isInteger(tahun) && tahun > 0 ? tahun : null;
 };
 
+/** Nomor pernikahan `pasangan` dari sudut pandang `orangId` (1 = pertama). */
+const urutanBagiOrang = (pasangan, orangId) =>
+  pasangan.orangAId === orangId ? pasangan.urutanA : pasangan.urutanB;
+
 /**
  * "Pernikahan ke-1 · bagi Siti Antarmuka ke-2 · 12 Juni 1995" — urutan dihitung
  * dari sisi masing-masing orang, jadi bila berbeda keduanya ditampilkan.
@@ -612,8 +616,11 @@ async function bukaRinci(orangId) {
     .filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
     .map((satu) => ({
       pasanganId: satu.id,
-      urutan: satu.orangAId === orangId ? satu.urutanA : satu.urutanB,
-      urutanPasangan: satu.orangAId === orangId ? satu.urutanB : satu.urutanA,
+      urutan: urutanBagiOrang(satu, orangId),
+      urutanPasangan: urutanBagiOrang(
+        satu,
+        satu.orangAId === orangId ? satu.orangBId : satu.orangAId,
+      ),
       tanggalMenikah: satu.tanggalMenikah,
       status: satu.status,
       tanggalBerakhir: satu.tanggalBerakhir,
@@ -865,9 +872,6 @@ const UKURAN_POHON = { lebar: 132, tinggi: 54, celah: 42, jarakX: 36, jarakY: 78
 function potongTeks(teks, maks) {
   return teks.length > maks ? `${teks.slice(0, maks - 1)}…` : teks;
 }
-
-const urutanBagiOrang = (pasangan, orangId) =>
-  pasangan.orangAId === orangId ? pasangan.urutanA : pasangan.urutanB;
 
 /** Pasangan yang kedua ujungnya ikut digambar; dipilih yang paling awal menikah. */
 function pasanganDalamPohon(orangId, ada) {
