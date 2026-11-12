@@ -109,6 +109,39 @@ describe("orang", () => {
     expect(liar.body.orang).toHaveLength(0);
   });
 
+  it("menyimpan keterangan tambahan dan bisa mengosongkannya lagi", async () => {
+    const { app } = buatAplikasiUji();
+    const { agen } = await daftar(app);
+    const ruangId = await buatRuang(agen);
+
+    const tambah = await agen.post(`/api/v1/workspaces/${ruangId}/persons`).send({
+      nama: "Budi Santoso",
+      namaLain: "Pak Budi",
+      pekerjaan: "Petani",
+      tempatPemakaman: "TPU Cikutra",
+      sumber: "Wawancara cucu, 2024",
+    });
+    expect(tambah.status).toBe(201);
+    expect(tambah.body.orang).toMatchObject({
+      namaLain: "Pak Budi",
+      pekerjaan: "Petani",
+      tempatPemakaman: "TPU Cikutra",
+      sumber: "Wawancara cucu, 2024",
+    });
+
+    const id = tambah.body.orang.id as string;
+    const ubah = await agen.patch(`/api/v1/workspaces/${ruangId}/persons/${id}`).send({ sumber: "" });
+    expect(ubah.status).toBe(200);
+    expect(ubah.body.orang.sumber).toBeNull();
+    expect(ubah.body.orang.pekerjaan).toBe("Petani");
+
+    const cari = await agen.get(`/api/v1/workspaces/${ruangId}/persons?q=pak budi`);
+    expect(cari.body.orang).toHaveLength(1);
+
+    const cariKerja = await agen.get(`/api/v1/workspaces/${ruangId}/persons?q=petani`);
+    expect(cariKerja.body.orang).toHaveLength(1);
+  });
+
   it("tidak bisa menyentuh orang di ruang kerja lain", async () => {
     const { app } = buatAplikasiUji();
     const satu = await daftar(app, "satu@contoh.test");

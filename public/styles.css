@@ -873,3 +873,59 @@ textarea:focus-visible,
   outline: 2px solid var(--hijau);
   outline-offset: 1px;
 }
+
+/* Saringan daftar orang */
+.saring {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+  padding: 0.35rem 1rem 0.85rem;
+}
+
+.saring-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--samar);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.saring-item select,
+.saring-item input {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.86rem;
+  letter-spacing: 0;
+  text-transform: none;
+  min-width: 8rem;
+}
+
+.saring-item input[type="number"] {
+  width: 7.5rem;
+  min-width: 0;
+}
+
+.saring .tombol {
+  margin-bottom: 0.05rem;
+}
+
+.jarak-atas {
+  margin-top: 0.7rem;
+}
+
+@media (max-width: 640px) {
+  .alat-kanan {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .alat-kanan input[type="search"] {
+    width: 100%;
+  }
+
+  .saring-item {
+    flex: 1 1 45%;
+  }
+}

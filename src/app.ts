@@ -25,7 +25,8 @@ export function buatAplikasi({ penyimpanan, konfigurasi }: KetergantunganAplikas
   app.set("trust proxy", 1);
 
   app.use(idPermintaan);
-  app.use(express.json({ limit: "100kb" }));
+  // Badan JSON boleh memuat berkas GEDCOM untuk impor silsilah (sekitar 2000 orang).
+  app.use(express.json({ limit: "2mb" }));
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "same-origin");

@@ -20,41 +20,63 @@ function periksaTanggal(tanggalLahir: string | null, tanggalWafat: string | null
   }
 }
 
-function dataBaru(badan: Record<string, unknown>): DataOrang {
-  const nama = teksWajib(badan, "nama", "Nama", 1, 120);
-  const jenisKelamin = jenisKelaminWajib(badan);
-  const tanggalLahir = tanggalOpsional(badan, "tanggalLahir", "Tanggal lahir") ?? null;
-  const tempatLahir = teksOpsional(badan, "tempatLahir", "Tempat lahir", 120) ?? null;
-  const tanggalWafat = tanggalOpsional(badan, "tanggalWafat", "Tanggal wafat") ?? null;
-  const tempatWafat = teksOpsional(badan, "tempatWafat", "Tempat wafat", 120) ?? null;
-  const catatan = teksOpsional(badan, "catatan", "Catatan") ?? null;
-  periksaTanggal(tanggalLahir, tanggalWafat);
-  return { nama, jenisKelamin, tanggalLahir, tempatLahir, tanggalWafat, tempatWafat, catatan };
+/** Kunci yang tidak dikirim pada PATCH mempertahankan nilai lama. */
+function teksPilihan(
+  badan: Record<string, unknown>,
+  kunci: string,
+  label: string,
+  maks: number,
+  lama: string | null,
+): string | null {
+  return kunci in badan ? (teksOpsional(badan, kunci, label, maks) ?? null) : lama;
 }
 
-function dataGabungan(badan: Record<string, unknown>, lama: Orang): DataOrang {
-  const nama = "nama" in badan ? teksWajib(badan, "nama", "Nama", 1, 120) : lama.nama;
-  const jenisKelamin = "jenisKelamin" in badan ? jenisKelaminWajib(badan) : lama.jenisKelamin;
-  const tanggalLahir =
-    "tanggalLahir" in badan
-      ? (tanggalOpsional(badan, "tanggalLahir", "Tanggal lahir") ?? null)
-      : lama.tanggalLahir;
-  const tempatLahir =
-    "tempatLahir" in badan
-      ? (teksOpsional(badan, "tempatLahir", "Tempat lahir", 120) ?? null)
-      : lama.tempatLahir;
-  const tanggalWafat =
-    "tanggalWafat" in badan
-      ? (tanggalOpsional(badan, "tanggalWafat", "Tanggal wafat") ?? null)
-      : lama.tanggalWafat;
-  const tempatWafat =
-    "tempatWafat" in badan
-      ? (teksOpsional(badan, "tempatWafat", "Tempat wafat", 120) ?? null)
-      : lama.tempatWafat;
-  const catatan =
-    "catatan" in badan ? (teksOpsional(badan, "catatan", "Catatan") ?? null) : lama.catatan;
+function tanggalPilihan(
+  badan: Record<string, unknown>,
+  kunci: string,
+  label: string,
+  lama: string | null,
+): string | null {
+  return kunci in badan ? (tanggalOpsional(badan, kunci, label) ?? null) : lama;
+}
+
+function rapikanData(badan: Record<string, unknown>, lama: DataOrang | null): DataOrang {
+  const nama =
+    lama && !("nama" in badan) ? lama.nama : teksWajib(badan, "nama", "Nama", 1, 120);
+  const jenisKelamin =
+    "jenisKelamin" in badan ? jenisKelaminWajib(badan) : (lama?.jenisKelamin ?? "U");
+
+  const tanggalLahir = tanggalPilihan(badan, "tanggalLahir", "Tanggal lahir", lama?.tanggalLahir ?? null);
+  const tempatLahir = teksPilihan(badan, "tempatLahir", "Tempat lahir", 120, lama?.tempatLahir ?? null);
+  const tanggalWafat = tanggalPilihan(badan, "tanggalWafat", "Tanggal wafat", lama?.tanggalWafat ?? null);
+  const tempatWafat = teksPilihan(badan, "tempatWafat", "Tempat wafat", 120, lama?.tempatWafat ?? null);
+  const tempatPemakaman = teksPilihan(
+    badan,
+    "tempatPemakaman",
+    "Tempat pemakaman",
+    120,
+    lama?.tempatPemakaman ?? null,
+  );
+  const pekerjaan = teksPilihan(badan, "pekerjaan", "Pekerjaan", 120, lama?.pekerjaan ?? null);
+  const namaLain = teksPilihan(badan, "namaLain", "Nama panggilan", 120, lama?.namaLain ?? null);
+  const catatan = teksPilihan(badan, "catatan", "Catatan", 2000, lama?.catatan ?? null);
+  const sumber = teksPilihan(badan, "sumber", "Sumber informasi", 300, lama?.sumber ?? null);
+
   periksaTanggal(tanggalLahir, tanggalWafat);
-  return { nama, jenisKelamin, tanggalLahir, tempatLahir, tanggalWafat, tempatWafat, catatan };
+
+  return {
+    nama,
+    namaLain,
+    jenisKelamin,
+    tanggalLahir,
+    tempatLahir,
+    tanggalWafat,
+    tempatWafat,
+    pekerjaan,
+    tempatPemakaman,
+    catatan,
+    sumber,
+  };
 }
 
 export function ruteOrang(penyimpanan: Penyimpanan): Router {
@@ -73,7 +95,7 @@ export function ruteOrang(penyimpanan: Penyimpanan): Router {
 
   rute.post("/", async (req, res) => {
     const badan = badanObjek(req.body);
-    const orang = await penyimpanan.buatOrang(ruangId(req), dataBaru(badan));
+    const orang = await penyimpanan.buatOrang(ruangId(req), rapikanData(badan, null));
     res.status(201).json({ orang });
   });
 
@@ -89,7 +111,7 @@ export function ruteOrang(penyimpanan: Penyimpanan): Router {
     if (!lama) throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tidak ditemukan di ruang kerja ini.");
 
     const badan = badanObjek(req.body);
-    const orang = await penyimpanan.ubahOrang(ruangId(req), id, dataGabungan(badan, lama));
+    const orang = await penyimpanan.ubahOrang(ruangId(req), id, rapikanData(badan, lama));
     if (!orang) throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tidak ditemukan di ruang kerja ini.");
     res.json({ orang });
   });

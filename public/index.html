@@ -80,13 +80,56 @@
               <span id="jumlah-orang" class="keterangan kecil"></span>
             </div>
             <div class="alat-kanan">
-              <input type="search" id="cari" placeholder="Cari nama…" aria-label="Cari nama" />
-              <button type="button" class="tombol tombol-samar" id="tombol-ekspor">Ekspor</button>
+              <input
+                type="search"
+                id="cari"
+                placeholder="Cari nama, panggilan, pekerjaan…"
+                aria-label="Cari nama"
+              />
+              <button type="button" class="tombol tombol-samar" id="tombol-ekspor" title="Unduh seluruh data sebagai JSON">
+                Ekspor
+              </button>
+              <button type="button" class="tombol tombol-samar" id="tombol-gedcom" title="Unduh sebagai GEDCOM untuk aplikasi silsilah lain">
+                GEDCOM
+              </button>
+              <button type="button" class="tombol tombol-samar" id="tombol-impor" title="Impor berkas GEDCOM">
+                Impor
+              </button>
+              <input type="file" id="berkas-gedcom" accept=".ged,.gedcom,text/plain" hidden />
               <button type="button" class="tombol tombol-utama" id="tombol-tambah">+ Tambah orang</button>
             </div>
           </div>
 
           <div id="statistik" class="statistik" hidden></div>
+
+          <div class="saring" id="saring">
+            <label class="saring-item">
+              Jenis kelamin
+              <select id="saring-jk">
+                <option value="">Semua</option>
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+                <option value="U">Belum diketahui</option>
+              </select>
+            </label>
+            <label class="saring-item">
+              Status
+              <select id="saring-status">
+                <option value="">Semua</option>
+                <option value="hidup">Masih hidup</option>
+                <option value="wafat">Sudah wafat</option>
+              </select>
+            </label>
+            <label class="saring-item">
+              Lahir dari tahun
+              <input type="number" id="saring-dari" min="1" max="2200" placeholder="1940" />
+            </label>
+            <label class="saring-item">
+              sampai
+              <input type="number" id="saring-sampai" min="1" max="2200" placeholder="2000" />
+            </label>
+            <button type="button" class="tombol tombol-samar kecil" id="saring-bersih">Bersihkan</button>
+          </div>
 
           <div class="isi-panel">
             <div class="kolom-daftar">
@@ -101,12 +144,22 @@
                     <input type="text" name="nama" required maxlength="120" placeholder="mis. Siti Aminah Nasution" />
                   </label>
                   <label>
+                    Nama panggilan
+                    <input type="text" name="namaLain" maxlength="120" placeholder="mis. Pak Budi" />
+                  </label>
+                </div>
+                <div class="baris">
+                  <label>
                     Jenis kelamin
                     <select name="jenisKelamin">
                       <option value="U">Belum diketahui</option>
                       <option value="L">Laki-laki</option>
                       <option value="P">Perempuan</option>
                     </select>
+                  </label>
+                  <label>
+                    Pekerjaan
+                    <input type="text" name="pekerjaan" maxlength="120" placeholder="mis. Petani" />
                   </label>
                 </div>
 
@@ -147,6 +200,10 @@
                       <input type="text" name="tempatWafat" maxlength="120" placeholder="mis. Bandung" />
                     </label>
                   </div>
+                  <label class="jarak-atas">
+                    Tempat pemakaman
+                    <input type="text" name="tempatPemakaman" maxlength="120" placeholder="mis. TPU Cikutra, Bandung" />
+                  </label>
                 </div>
 
                 <div class="kelompok">
@@ -157,8 +214,13 @@
                       name="catatan"
                       rows="3"
                       maxlength="2000"
-                      placeholder="Pekerjaan, kampung asal, kisah yang ingin dikenang…"
+                      placeholder="Kampung asal, kisah yang ingin dikenang…"
                     ></textarea>
+                  </label>
+                  <label class="jarak-atas">
+                    Sumber informasi
+                    <input type="text" name="sumber" maxlength="300" placeholder="mis. Wawancara cucu, 2024" />
+                    <small class="petunjuk">Sebutkan dari mana keterangan ini didapat agar generasi berikutnya bisa menelusurinya.</small>
                   </label>
                 </div>
                 <p class="pesan" id="pesan-orang" role="alert" hidden></p>
@@ -170,6 +232,9 @@
 
               <p id="kosong-orang" class="kosong" hidden>
                 Belum ada anggota keluarga. Tekan <strong>+ Tambah orang</strong> untuk memulai.
+              </p>
+              <p id="kosong-saring" class="kosong" hidden>
+                Tidak ada orang yang cocok dengan pencarian atau saringan ini.
               </p>
               <ul id="daftar-orang" class="daftar-orang"></ul>
             </div>

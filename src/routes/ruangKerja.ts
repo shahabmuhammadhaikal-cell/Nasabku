@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { BATAS_DOKUMEN, type Penyimpanan } from "../data/penyimpanan.js";
+import type { Relasi } from "../data/tipe.js";
+import { BATAS_IMPOR_ORANG, bacaGedcom, buatGedcom } from "../lib/gedcom.js";
 import { galat } from "../lib/kesalahan.js";
+import { akanMembentukSiklus } from "../lib/silsilah.js";
 import { hitungStatistik } from "../lib/statistik.js";
 import { badanObjek, teksWajib } from "../lib/validasi.js";
 import { muatRuangKerja } from "../middleware/auth.js";
@@ -52,6 +55,23 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
       penyimpanan.daftarRelasi(ruangKerja.id),
     ]);
 
+    if (req.query.format === "gedcom") {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="nasabku-${namaBerkas(ruangKerja.nama)}.ged"`,
+      );
+      res.setHeader("Cache-Control", "no-store");
+      res.send(buatGedcom(ruangKerja, orang, relasi));
+      return;
+    }
+
+    if (req.query.format !== undefined && req.query.format !== "json") {
+      throw galat(422, "VALIDASI_GAGAL", 'Parameter "format" harus "json" atau "gedcom".', {
+        field: "format",
+      });
+    }
+
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
@@ -66,6 +86,80 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
       statistik: hitungStatistik(orang, relasi),
       orang,
       relasi,
+    });
+  });
+
+  /**
+   * Impor GEDCOM: menambah orang dan relasi ke ruang kerja yang sudah ada.
+   * Relasi yang membentuk lingkaran dilewati, bukan membuat impor gagal seluruhnya.
+   */
+  rute.post("/:workspaceId/import", muatRuangKerja(penyimpanan), async (req, res) => {
+    const ruangKerja = req.ruangKerja;
+    if (!ruangKerja) throw galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan.");
+
+    const badan = badanObjek(req.body);
+    const isi = teksWajib(badan, "gedcom", "Isi GEDCOM", 1, 1_500_000);
+    const hasil = bacaGedcom(isi);
+
+    if (hasil.individu.length === 0) {
+      throw galat(
+        422,
+        "GEDCOM_KOSONG",
+        "Tidak ada individu yang bisa dibaca dari berkas GEDCOM itu.",
+        { field: "gedcom" },
+      );
+    }
+    if (hasil.individu.length > BATAS_IMPOR_ORANG) {
+      throw galat(
+        422,
+        "GEDCOM_TERLALU_BESAR",
+        `Satu kali impor dibatasi ${BATAS_IMPOR_ORANG} orang.`,
+        { field: "gedcom" },
+      );
+    }
+
+    const idPerLabel = new Map<string, string>();
+    for (const satu of hasil.individu) {
+      const orang = await penyimpanan.buatOrang(ruangKerja.id, satu.data);
+      idPerLabel.set(satu.kunci, orang.id);
+    }
+
+    const relasiLama = await penyimpanan.daftarRelasi(ruangKerja.id);
+    const terbentuk: Relasi[] = [];
+    let relasiDilewati = 0;
+
+    for (const keluarga of hasil.keluarga) {
+      for (const kunciOrangTua of keluarga.orangTua) {
+        const orangTuaId = idPerLabel.get(kunciOrangTua);
+        if (!orangTuaId) {
+          relasiDilewati += 1;
+          continue;
+        }
+        for (const kunciAnak of keluarga.anak) {
+          const anakId = idPerLabel.get(kunciAnak);
+          if (!anakId || anakId === orangTuaId) {
+            relasiDilewati += 1;
+            continue;
+          }
+          if (akanMembentukSiklus([...relasiLama, ...terbentuk], orangTuaId, anakId)) {
+            relasiDilewati += 1;
+            continue;
+          }
+          const relasi = await penyimpanan.buatRelasi(ruangKerja.id, orangTuaId, anakId);
+          if (relasi) terbentuk.push(relasi);
+          else relasiDilewati += 1;
+        }
+      }
+    }
+
+    res.status(201).json({
+      impor: {
+        orang: hasil.individu.length,
+        relasi: terbentuk.length,
+        relasiDilewati,
+        tanggalDiabaikan: hasil.tanggalDiabaikan,
+        namaDiabaikan: hasil.namaKosong,
+      },
     });
   });
 

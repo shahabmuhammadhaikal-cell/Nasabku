@@ -48,14 +48,48 @@ async function panggil(jalur, { metode = "GET", badan } = {}) {
   return data;
 }
 
+const kosongJadiNull = (nilai) => (nilai === "" || nilai === undefined ? null : nilai);
+
+/** Mengambil respons teks (GEDCOM) dan mengubah galat JSON menjadi GalatApi. */
+async function panggilTeks(jalur) {
+  let respons;
+  try {
+    respons = await fetch(`${DASAR}${jalur}`, {
+      credentials: "same-origin",
+      headers: { Accept: "text/plain" },
+    });
+  } catch {
+    throw new GalatApi("Tidak bisa menghubungi server. Periksa koneksi Anda.", "JARINGAN", 0);
+  }
+
+  const teks = await respons.text();
+  if (!respons.ok) {
+    let pesan = `Permintaan gagal (${respons.status}).`;
+    let kode = "GALAT_TIDAK_DIKENAL";
+    try {
+      const data = JSON.parse(teks);
+      pesan = data?.error?.pesan ?? pesan;
+      kode = data?.error?.kode ?? kode;
+    } catch {
+      // Bukan JSON: pakai pesan bawaan.
+    }
+    throw new GalatApi(pesan, kode, respons.status);
+  }
+  return teks;
+}
+
 const badanOrang = (nilai) => ({
   nama: nilai.nama,
+  namaLain: kosongJadiNull(nilai.namaLain),
   jenisKelamin: nilai.jenisKelamin,
-  tanggalLahir: nilai.tanggalLahir === "" ? null : nilai.tanggalLahir,
-  tempatLahir: nilai.tempatLahir === "" ? null : nilai.tempatLahir,
-  tanggalWafat: nilai.tanggalWafat === "" ? null : nilai.tanggalWafat,
-  tempatWafat: nilai.tempatWafat === "" ? null : nilai.tempatWafat,
-  catatan: nilai.catatan === "" ? null : nilai.catatan,
+  tanggalLahir: kosongJadiNull(nilai.tanggalLahir),
+  tempatLahir: kosongJadiNull(nilai.tempatLahir),
+  tanggalWafat: kosongJadiNull(nilai.tanggalWafat),
+  tempatWafat: kosongJadiNull(nilai.tempatWafat),
+  pekerjaan: kosongJadiNull(nilai.pekerjaan),
+  tempatPemakaman: kosongJadiNull(nilai.tempatPemakaman),
+  catatan: kosongJadiNull(nilai.catatan),
+  sumber: kosongJadiNull(nilai.sumber),
 });
 
 export const api = {
@@ -69,6 +103,9 @@ export const api = {
   hapusRuangKerja: (id) => panggil(`/workspaces/${id}`, { metode: "DELETE" }),
   statistik: (id) => panggil(`/workspaces/${id}/stats`),
   ekspor: (id) => panggil(`/workspaces/${id}/export`),
+  eksporGedcom: (id) => panggilTeks(`/workspaces/${id}/export?format=gedcom`),
+  imporGedcom: (id, gedcom) =>
+    panggil(`/workspaces/${id}/import`, { metode: "POST", badan: { gedcom } }),
 
   orang: (ruangId, q = "") =>
     panggil(`/workspaces/${ruangId}/persons${q ? `?q=${encodeURIComponent(q)}` : ""}`),

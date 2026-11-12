@@ -10,6 +10,7 @@ const state = {
   terpilihId: null,
   arah: "turun",
   cari: "",
+  saring: { jk: "", status: "", dari: "", sampai: "" },
   modeForm: "tambah",
 };
 
@@ -59,11 +60,16 @@ function tahunTeks(orang) {
 
 function faktaOrang(orang) {
   const baris = [
+    ["Nama panggilan", orang.namaLain],
     ["Jenis kelamin", labelKelamin[orang.jenisKelamin] ?? "Belum diketahui"],
     ["Lahir", [formatTanggal(orang.tanggalLahir), orang.tempatLahir].filter(Boolean).join(" · ") || "—"],
     ["Wafat", [formatTanggal(orang.tanggalWafat), orang.tempatWafat].filter(Boolean).join(" · ") || "—"],
+    ["Makam", orang.tempatPemakaman],
+    ["Pekerjaan", orang.pekerjaan],
+    ["Sumber", orang.sumber],
   ];
   return `<dl class="rinci-fakta">${baris
+    .filter(([, nilai]) => Boolean(nilai))
     .map(([label, nilai]) => `<div><dt>${esc(label)}</dt><dd>${esc(nilai)}</dd></div>`)
     .join("")}</dl>`;
 }
@@ -188,6 +194,11 @@ async function pilihRuang(ruang) {
   state.terpilihId = null;
   state.cari = "";
   $("cari").value = "";
+  state.saring = { jk: "", status: "", dari: "", sampai: "" };
+  $("saring-jk").value = "";
+  $("saring-status").value = "";
+  $("saring-dari").value = "";
+  $("saring-sampai").value = "";
   $("rinci").hidden = true;
   tutupFormOrang();
   gambarDaftarRuang();
@@ -264,18 +275,67 @@ function gambarStatistik(statistik) {
   wadah.hidden = statistik.jumlahOrang === 0;
 }
 
+function unduhBerkas(isi, namaBerkasUnduhan, tipe) {
+  const blob = new Blob([isi], { type: tipe });
+  const tautan = document.createElement("a");
+  tautan.href = URL.createObjectURL(blob);
+  tautan.download = namaBerkasUnduhan;
+  document.body.append(tautan);
+  tautan.click();
+  tautan.remove();
+  setTimeout(() => URL.revokeObjectURL(tautan.href), 2000);
+}
+
 async function tanganiEkspor() {
   if (!state.ruang) return;
   try {
     const data = await api.ekspor(state.ruang.id);
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const tautan = document.createElement("a");
-    tautan.href = URL.createObjectURL(blob);
-    tautan.download = `nasabku-${namaBerkas(state.ruang.nama)}.json`;
-    document.body.append(tautan);
-    tautan.click();
-    tautan.remove();
-    setTimeout(() => URL.revokeObjectURL(tautan.href), 2000);
+    unduhBerkas(
+      JSON.stringify(data, null, 2),
+      `nasabku-${namaBerkas(state.ruang.nama)}.json`,
+      "application/json",
+    );
+  } catch (galat) {
+    alert(galat.message);
+  }
+}
+
+async function tanganiEksporGedcom() {
+  if (!state.ruang) return;
+  try {
+    const teks = await api.eksporGedcom(state.ruang.id);
+    unduhBerkas(teks, `nasabku-${namaBerkas(state.ruang.nama)}.ged`, "text/plain;charset=utf-8");
+  } catch (galat) {
+    alert(galat.message);
+  }
+}
+
+async function tanganiImporGedcom(peristiwa) {
+  const berkas = peristiwa.target.files?.[0];
+  peristiwa.target.value = "";
+  if (!berkas || !state.ruang) return;
+  if (
+    !confirm(
+      `Impor “${berkas.name}” ke ruang kerja “${state.ruang.nama}”? Data yang ada akan ditambah, tidak ditimpa.`,
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const hasil = await api.imporGedcom(state.ruang.id, await berkas.text());
+    const info = hasil.impor;
+    const catatan = [
+      `${info.orang} orang`,
+      `${info.relasi} relasi`,
+      info.relasiDilewati ? `${info.relasiDilewati} relasi dilewati` : null,
+      info.tanggalDiabaikan ? `${info.tanggalDiabaikan} tanggal tidak dikenali` : null,
+      info.namaDiabaikan ? `${info.namaDiabaikan} entri tanpa nama dilewati` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    alert(`Impor selesai: ${catatan}.`);
+    await muatOrang();
   } catch (galat) {
     alert(galat.message);
   }
@@ -292,15 +352,40 @@ function namaBerkas(nama) {
   );
 }
 
+const tahunLahir = (orang) => {
+  const tahun = Number(String(orang.tanggalLahir ?? "").slice(0, 4));
+  return Number.isInteger(tahun) && tahun > 0 ? tahun : null;
+};
+
+/** Daftar orang setelah disaring di peramban: jenis kelamin, status hidup, rentang tahun lahir. */
+function orangTersaring() {
+  const { jk, status, dari, sampai } = state.saring;
+  const batasDari = dari ? Number(dari) : null;
+  const batasSampai = sampai ? Number(sampai) : null;
+  return state.orang.filter((orang) => {
+    if (jk && orang.jenisKelamin !== jk) return false;
+    if (status === "hidup" && orang.tanggalWafat) return false;
+    if (status === "wafat" && !orang.tanggalWafat) return false;
+    const tahun = tahunLahir(orang);
+    if (batasDari !== null && (tahun === null || tahun < batasDari)) return false;
+    if (batasSampai !== null && (tahun === null || tahun > batasSampai)) return false;
+    return true;
+  });
+}
+
 function gambarDaftarOrang() {
   const daftar = $("daftar-orang");
+  const tampil = orangTersaring();
   daftar.innerHTML = "";
   $("kosong-orang").hidden = state.orang.length > 0 || !state.ruang;
+  $("kosong-saring").hidden = !state.ruang || state.orang.length === 0 || tampil.length > 0;
   $("jumlah-orang").textContent = state.ruang
-    ? `${state.orang.length} orang${state.cari ? " cocok" : " tercatat"}`
+    ? tampil.length === state.orang.length
+      ? `${tampil.length} orang${state.cari ? " cocok" : " tercatat"}`
+      : `${tampil.length} dari ${state.orang.length} orang`
     : "";
 
-  for (const orang of state.orang) {
+  for (const orang of tampil) {
     const li = document.createElement("li");
     const tombol = document.createElement("button");
     tombol.type = "button";
@@ -325,12 +410,16 @@ function bukaFormOrang(orang) {
   form.hidden = false;
   $("judul-form-orang").textContent = orang ? "Ubah data orang" : "Tambah orang";
   form.elements.nama.value = orang?.nama ?? "";
+  form.elements.namaLain.value = orang?.namaLain ?? "";
   form.elements.jenisKelamin.value = orang?.jenisKelamin ?? "U";
+  form.elements.pekerjaan.value = orang?.pekerjaan ?? "";
   form.elements.tanggalLahir.value = orang?.tanggalLahir ?? "";
   form.elements.tempatLahir.value = orang?.tempatLahir ?? "";
   form.elements.tanggalWafat.value = orang?.tanggalWafat ?? "";
   form.elements.tempatWafat.value = orang?.tempatWafat ?? "";
+  form.elements.tempatPemakaman.value = orang?.tempatPemakaman ?? "";
   form.elements.catatan.value = orang?.catatan ?? "";
+  form.elements.sumber.value = orang?.sumber ?? "";
   state.modeForm = orang ? orang.id : "tambah";
   pesan($("pesan-orang"), "");
   form.elements.nama.focus();
@@ -349,12 +438,16 @@ async function simpanOrang(peristiwa) {
   const form = peristiwa.currentTarget;
   const data = {
     nama: String(form.elements.nama.value ?? "").trim(),
+    namaLain: String(form.elements.namaLain.value ?? "").trim(),
     jenisKelamin: String(form.elements.jenisKelamin.value ?? "U"),
+    pekerjaan: String(form.elements.pekerjaan.value ?? "").trim(),
     tanggalLahir: form.elements.tanggalLahir.value,
     tempatLahir: form.elements.tempatLahir.value,
     tanggalWafat: form.elements.tanggalWafat.value,
     tempatWafat: form.elements.tempatWafat.value,
+    tempatPemakaman: String(form.elements.tempatPemakaman.value ?? "").trim(),
     catatan: String(form.elements.catatan.value ?? "").trim(),
+    sumber: String(form.elements.sumber.value ?? "").trim(),
   };
   const tombol = form.querySelector("button[type=submit]");
   tombol.disabled = true;
@@ -623,6 +716,16 @@ async function gambarPohon(orangId) {
 
 /* ------------------------------- Inisialisasi ---------------------------- */
 
+function perbaruiSaring() {
+  state.saring = {
+    jk: $("saring-jk").value,
+    status: $("saring-status").value,
+    dari: $("saring-dari").value.trim(),
+    sampai: $("saring-sampai").value.trim(),
+  };
+  gambarDaftarOrang();
+}
+
 function pasangPeristiwa() {
   pasangTab();
   $("form-masuk").addEventListener("submit", tanganiMasuk);
@@ -632,6 +735,20 @@ function pasangPeristiwa() {
   $("batal-orang").addEventListener("click", tutupFormOrang);
   $("tombol-tambah").addEventListener("click", () => bukaFormOrang(null));
   $("tombol-ekspor").addEventListener("click", tanganiEkspor);
+  $("tombol-gedcom").addEventListener("click", tanganiEksporGedcom);
+  $("tombol-impor").addEventListener("click", () => $("berkas-gedcom").click());
+  $("berkas-gedcom").addEventListener("change", tanganiImporGedcom);
+  for (const id of ["saring-jk", "saring-status", "saring-dari", "saring-sampai"]) {
+    $(id).addEventListener("input", perbaruiSaring);
+  }
+  $("saring-bersih").addEventListener("click", () => {
+    state.saring = { jk: "", status: "", dari: "", sampai: "" };
+    $("saring-jk").value = "";
+    $("saring-status").value = "";
+    $("saring-dari").value = "";
+    $("saring-sampai").value = "";
+    gambarDaftarOrang();
+  });
   $("tombol-keluar").addEventListener("click", async () => {
     await api.keluar();
     state.pengguna = null;

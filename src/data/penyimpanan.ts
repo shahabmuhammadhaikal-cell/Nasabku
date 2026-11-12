@@ -190,8 +190,14 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
     async daftarOrang(ruangKerjaId, { q = "", batas = 500 } = {}) {
       const semua = (await orangDi(ruangKerjaId).daftar(BATAS_DOKUMEN)).map(keOrang);
       const kunci = q.trim().toLocaleLowerCase("id");
+      // Pencarian mencakup nama panggilan dan pekerjaan agar leluhur yang dikenal
+      // dengan sebutan lain tetap ketemu.
       const saring = kunci
-        ? semua.filter((orang) => orang.nama.toLocaleLowerCase("id").includes(kunci))
+        ? semua.filter((orang) =>
+            [orang.nama, orang.namaLain, orang.pekerjaan].some((nilai) =>
+              nilai ? nilai.toLocaleLowerCase("id").includes(kunci) : false,
+            ),
+          )
         : semua;
       return saring.sort(urutNama).slice(0, batas);
     },

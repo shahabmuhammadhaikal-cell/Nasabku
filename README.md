@@ -69,9 +69,15 @@ pengguna/{penggunaId}            { email, nama, sandiHash, dibuatPada }
 emailIndex/{email}               { penggunaId }              ← keunikan email
 sesi/{sha256(token)}             { penggunaId, dibuatPada, kedaluwarsaPada }
 ruangKerja/{ruangKerjaId}        { nama, pemilikId, dibuatPada }
-ruangKerja/{id}/orang/{orangId}  { nama, jenisKelamin, tanggalLahir, tempatLahir, tanggalWafat, tempatWafat, catatan, ... }
+ruangKerja/{id}/orang/{orangId}  { nama, namaLain, jenisKelamin, tanggalLahir, tempatLahir,
+                                   tanggalWafat, tempatWafat, pekerjaan, tempatPemakaman,
+                                   catatan, sumber, ... }
 ruangKerja/{id}/relasi/{orangTuaId_anakId}  { orangTuaId, anakId, dibuatPada }
 ```
+
+Tanggal disimpan **bertingkat** — `"1954"`, `"1954-06"`, atau `"1954-06-12"` — supaya leluhur yang tanggal
+lengkapnya belum diketahui tetap tercatat jujur, tanpa mengarang tanggal. Dokumen lama yang hanya berisi
+angka `tahunLahir`/`tahunWafat` tetap terbaca.
 
 - Token sesi tidak pernah disimpan mentah: hanya sidik SHA-256 yang menjadi id dokumen `sesi`.
 - Id dokumen relasi deterministik (`orangTuaId_anakId`) sehingga relasi ganda ditolak oleh Firestore sendiri.
@@ -99,20 +105,34 @@ Semua di bawah `/api/v1`. Sesi memakai cookie `HttpOnly` `nasabku_sesi`.
 | GET | `/auth/me` | Profil pengguna pemilik sesi. |
 | GET/POST | `/workspaces` | Daftar / buat ruang kerja. |
 | GET/PATCH/DELETE | `/workspaces/:id` | Detail / ubah nama / hapus. |
-| GET/POST | `/workspaces/:id/persons` | Daftar (dukungan `?q=` dan `?limit=`) / tambah orang. |
+| GET/POST | `/workspaces/:id/persons` | Daftar (dukungan `?q=` yang mencari nama, nama panggilan, dan pekerjaan; juga `?limit=`) / tambah orang. |
 | GET/PATCH/DELETE | `/workspaces/:id/persons/:orangId` | Detail / ubah / hapus. |
 | GET/POST | `/workspaces/:id/relations` | Daftar (`?orangId=`) / catat relasi orang tua–anak. |
 | DELETE | `/workspaces/:id/relations/:relasiId` | Lepas relasi. |
+| GET | `/workspaces/:id/stats` | Ringkasan jumlah orang, angkatan, akar/daun, rentang tahun lahir. |
+| GET | `/workspaces/:id/export` | Unduh seluruh data sebagai JSON; `?format=gedcom` untuk GEDCOM 5.5.1. |
+| POST | `/workspaces/:id/import` | `{ gedcom }` → menambah orang dan relasi dari berkas GEDCOM. |
 | GET | `/workspaces/:id/tree/:orangId` | `?arah=turun\|naik&kedalaman=1..10` → pohon silsilah. |
 
 Galat selalu berbentuk `{ "error": { "kode", "pesan", "rincian?" }, "idPermintaan" }`.
+
+### GEDCOM
+
+Ekspor `?format=gedcom` menghasilkan berkas **GEDCOM 5.5.1** (`.ged`) yang bisa dibuka di aplikasi silsilah
+lain: individu (nama, nama panggilan, jenis kelamin, lahir/wafat beserta tempat, pemakaman, pekerjaan,
+catatan, sumber), keluarga (HUSB/WIFE/CHIL), serta tanggal bertingkat yang dipetakan ke `1954`,
+`JUN 1954`, dan `12 JUN 1954`.
+
+Impor menerima berkas GEDCOM dengan aturan yang sama: maksimal 2000 orang per impor, tanggal yang tidak
+sah **diabaikan** (tidak dikarang), relasi yang membentuk lingkaran dilewati, dan hasilnya dilaporkan di
+`{ impor: { orang, relasi, relasiDilewati, tanggalDiabaikan, namaDiabaikan } }`.
 
 ### Aturan yang dijaga server
 
 - Setiap ruang kerja hanya dapat diakses pemiliknya; milik orang lain dijawab **404** agar tidak bocor.
 - Relasi tidak boleh menunjuk diri sendiri, tidak boleh ganda, dan **tidak boleh membentuk lingkaran**
   (mis. A → B → C lalu C → A) — dijaga dengan penelusuran keturunan sebelum penyimpanan.
-- Tahun wafat tidak boleh lebih awal daripada tahun lahir.
+- Tanggal wafat tidak boleh lebih awal daripada tanggal lahir; format tanggal harus tanggal kalender yang nyata.
 - Nama kosong, email tidak sah, dan kata sandi di bawah 8 karakter ditolak dengan 422.
 
 ## Pengujian
