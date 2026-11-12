@@ -310,30 +310,12 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
       const kanan = urut[1] ?? orangBId;
       const id = `${kiri}_${kanan}`;
       const dibuatPada = new Date().toISOString();
-
-      let urutan = data.urutan;
-      if (urutan === undefined) {
-        // Pernikahan berikutnya dari salah satu pihak menjadi urutan terakhir + 1.
-        const ada = (await pasanganDi(ruangKerjaId).daftar(BATAS_DOKUMEN)).map(kePasangan);
-        const terpakai = ada
-          .filter(
-            (satu) =>
-              satu.orangAId === kiri ||
-              satu.orangBId === kiri ||
-              satu.orangAId === kanan ||
-              satu.orangBId === kanan,
-          )
-          .map((satu) => satu.urutan);
-        urutan = (terpakai.length ? Math.max(...terpakai) : 0) + 1;
-      }
-
       const pasangan: Pasangan = {
         id,
         ruangKerjaId,
         orangAId: kiri,
         orangBId: kanan,
         tanggalMenikah: data.tanggalMenikah ?? null,
-        urutan,
         dibuatPada,
       };
       const terbuat = await pasanganDi(ruangKerjaId).buat(id, { ...pasangan });

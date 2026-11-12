@@ -3,18 +3,8 @@ import type { Penyimpanan } from "../data/penyimpanan.js";
 import type { Pasangan } from "../data/tipe.js";
 import { galat } from "../lib/kesalahan.js";
 import { tahunDari } from "../lib/tanggal.js";
+import { urutkanPerOrang } from "../lib/pernikahan.js";
 import { badanObjek, tanggalOpsional, teksWajib } from "../lib/validasi.js";
-
-function urutanOpsional(badan: Record<string, unknown>): number | undefined {
-  if (!("urutan" in badan) || badan.urutan === undefined) return undefined;
-  const nilai = badan.urutan;
-  if (typeof nilai !== "number" || !Number.isInteger(nilai) || nilai < 1 || nilai > 30) {
-    throw galat(422, "VALIDASI_GAGAL", "Urutan pernikahan harus bilangan bulat 1–30.", {
-      field: "urutan",
-    });
-  }
-  return nilai;
-}
 
 /** Pernikahan tidak mungkin terjadi sebelum kedua mempelai lahir. */
 function periksaTanggalMenikah(
@@ -40,7 +30,10 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
   rute.get("/", async (req, res) => {
     const orangId = typeof req.query.orangId === "string" ? req.query.orangId : undefined;
     const pasangan = await penyimpanan.daftarPasangan(ruangId(req), orangId);
-    res.json({ pasangan, jumlah: pasangan.length });
+    // Urutan pernikahan dihitung per orang dari seluruh pernikahan di ruang kerja ini.
+    const semua = await penyimpanan.daftarPasangan(ruangId(req));
+    const berurut = urutkanPerOrang(semua).filter((satu) => pasangan.some((lain) => lain.id === satu.id));
+    res.json({ pasangan: berurut, jumlah: berurut.length });
   });
 
   rute.post("/", async (req, res) => {
@@ -72,16 +65,16 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       tahunDari(pertama.tanggalLahir),
       tahunDari(kedua.tanggalLahir),
     ]);
-    const urutan = urutanOpsional(badan);
-
     const pasangan = await penyimpanan.buatPasangan(idRuang, orangAId, orangBId, {
       tanggalMenikah,
-      ...(urutan === undefined ? {} : { urutan }),
     });
     if (!pasangan) {
       throw galat(409, "PASANGAN_SUDAH_ADA", "Hubungan pasangan ini sudah tercatat.");
     }
-    res.status(201).json({ pasangan });
+    const [berurut] = urutkanPerOrang(await penyimpanan.daftarPasangan(idRuang)).filter(
+      (satu) => satu.id === pasangan.id,
+    );
+    res.status(201).json({ pasangan: berurut ?? pasangan });
   });
 
   rute.patch("/:pasanganId", async (req, res) => {
@@ -96,8 +89,6 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       "tanggalMenikah" in badan
         ? (tanggalOpsional(badan, "tanggalMenikah", "Tanggal menikah") ?? null)
         : lama.tanggalMenikah;
-    const urutan = urutanOpsional(badan) ?? lama.urutan;
-
     const [orangA, orangB] = await Promise.all([
       penyimpanan.ambilOrang(idRuang, lama.orangAId),
       penyimpanan.ambilOrang(idRuang, lama.orangBId),
@@ -107,9 +98,12 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       tahunDari(orangB?.tanggalLahir ?? null),
     ]);
 
-    const pasangan = await penyimpanan.ubahPasangan(idRuang, id, { tanggalMenikah, urutan });
+    const pasangan = await penyimpanan.ubahPasangan(idRuang, id, { tanggalMenikah });
     if (!pasangan) throw galat(404, "PASANGAN_TIDAK_DITEMUKAN", "Hubungan pasangan tidak ditemukan.");
-    res.json({ pasangan });
+    const [berurut] = urutkanPerOrang(await penyimpanan.daftarPasangan(idRuang)).filter(
+      (satu) => satu.id === pasangan.id,
+    );
+    res.json({ pasangan: berurut ?? pasangan });
   });
 
   rute.delete("/:pasanganId", async (req, res) => {

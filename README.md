@@ -73,7 +73,7 @@ ruangKerja/{id}/orang/{orangId}  { nama, namaLain, jenisKelamin, tanggalLahir, t
                                    tanggalWafat, tempatWafat, pekerjaan, tempatPemakaman,
                                    catatan, sumber, ... }
 ruangKerja/{id}/relasi/{orangTuaId_anakId}  { orangTuaId, anakId, dibuatPada }
-ruangKerja/{id}/pasangan/{idA_idB}          { orangAId, orangBId, tanggalMenikah, urutan, dibuatPada }
+ruangKerja/{id}/pasangan/{idA_idB}          { orangAId, orangBId, tanggalMenikah, dibuatPada }
 ```
 
 Tanggal disimpan **bertingkat** — `"1954"`, `"1954-06"`, atau `"1954-06-12"` — supaya leluhur yang tanggal
@@ -110,8 +110,8 @@ Semua di bawah `/api/v1`. Sesi memakai cookie `HttpOnly` `nasabku_sesi`.
 | GET/PATCH/DELETE | `/workspaces/:id/persons/:orangId` | Detail / ubah / hapus. |
 | GET/POST | `/workspaces/:id/relations` | Daftar (`?orangId=`) / catat relasi orang tua–anak. |
 | DELETE | `/workspaces/:id/relations/:relasiId` | Lepas relasi. |
-| GET/POST | `/workspaces/:id/partners` | Daftar (`?orangId=`) / catat pernikahan: `{ orangAId, orangBId, tanggalMenikah?, urutan? }`. |
-| PATCH | `/workspaces/:id/partners/:pasanganId` | Ubah tanggal menikah dan urutan pernikahan. |
+| GET/POST | `/workspaces/:id/partners` | Daftar (`?orangId=`) / catat pernikahan: `{ orangAId, orangBId, tanggalMenikah? }`. |
+| PATCH | `/workspaces/:id/partners/:pasanganId` | Ubah tanggal menikah. |
 | DELETE | `/workspaces/:id/partners/:pasanganId` | Lepas hubungan pasangan. |
 | GET | `/workspaces/:id/stats` | Ringkasan jumlah orang, angkatan, akar/daun, rentang tahun lahir. |
 | GET | `/workspaces/:id/export` | Unduh seluruh data sebagai JSON; `?format=gedcom` untuk GEDCOM 5.5.1. |
@@ -133,7 +133,16 @@ sah **diabaikan** (tidak dikarang), relasi yang membentuk lingkaran dilewati, da
 
 Pernikahan ikut diekspor sebagai `FAM` dengan `HUSB`/`WIFE` dan `MARR`/`DATE` — termasuk pasangan yang belum
 memiliki anak tercatat — lalu dikembalikan menjadi hubungan pasangan beserta tanggal menikahnya saat diimpor.
-Urutan pernikahan tidak punya tag baku di GEDCOM 5.5.1, jadi dihitung ulang saat impor.
+`FAM` diurutkan menurut tanggal pernikahan.
+
+### Urutan pernikahan
+
+Urutan pernikahan **tidak disimpan**; dihitung per orang dari tanggal pernikahannya
+(`src/lib/pernikahan.ts`). Hal ini penting karena satu pernikahan bisa menjadi pernikahan ke-2 bagi suami tetapi
+ke-1 bagi istri. Setiap pasangan dalam respons `/partners` membawa `urutanA` dan `urutanB` — nomor dari sisi
+masing-masing orang — sehingga antarmuka bisa menampilkan keduanya. Pernikahan tanpa tanggal diletakkan paling
+akhir, dan urutan yang sudah pasti tidak terpengaruh. GEDCOM 5.5.1 tidak punya tag untuk nomor pernikahan,
+sehingga nomor dihitung ulang saat impor berdasarkan tanggal yang dibaca.
 
 Impor **tidak menduplikasi**: orang yang namanya sama (tanpa peduli huruf besar/kecil, aksen, dan tanda
 baca), jenis kelaminnya tidak bertentangan, dan tahun lahirnya sama dianggap orang yang sudah tercatat.

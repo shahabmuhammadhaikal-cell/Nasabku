@@ -74,7 +74,6 @@ describe("ekspor & impor GEDCOM", () => {
       orangAId: suami,
       orangBId: istri,
       tanggalMenikah: "1975-06-12",
-      urutan: 1,
     });
 
     const ekspor = await agen.get(`/api/v1/workspaces/${asal}/export?format=gedcom`);
@@ -90,7 +89,8 @@ describe("ekspor & impor GEDCOM", () => {
 
     const pasangan = await agen.get(`/api/v1/workspaces/${tujuan}/partners`);
     expect(pasangan.body.jumlah).toBe(1);
-    expect(pasangan.body.pasangan[0]).toMatchObject({ tanggalMenikah: "1975-06-12", urutan: 1 });
+    expect(pasangan.body.pasangan[0]).toMatchObject({ tanggalMenikah: "1975-06-12", urutanA: 1 });
+    expect(pasangan.body.pasangan[0].urutanB).toBe(1);
     expect((await agen.get(`/api/v1/workspaces/${tujuan}/stats`)).body.statistik.jumlahPasangan).toBe(1);
   });
 

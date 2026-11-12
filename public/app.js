@@ -277,10 +277,12 @@ function peristiwaKronologi() {
   for (const satu of state.pasangan) {
     const tahunMenikah = Number(String(satu.tanggalMenikah ?? "").slice(0, 4));
     if (!Number.isInteger(tahunMenikah) || tahunMenikah <= 0) continue;
+    const namaA = namaOrang(satu.orangAId);
+    const namaB = namaOrang(satu.orangBId);
     daftar.push({
       tahun: tahunMenikah,
-      nama: `${namaOrang(satu.orangAId)} & ${namaOrang(satu.orangBId)}`,
-      teks: `menikah (pernikahan ke-${satu.urutan})`,
+      nama: `${namaA} & ${namaB}`,
+      teks: `menikah (ke-${satu.urutanA} bagi ${namaA}, ke-${satu.urutanB} bagi ${namaB})`,
     });
   }
 
@@ -426,9 +428,15 @@ const tahunLahir = (orang) => {
   return Number.isInteger(tahun) && tahun > 0 ? tahun : null;
 };
 
-/** "Pernikahan ke-2 · 12 Juni 1985" — urutan dan tanggal pernikahan. */
+/**
+ * "Pernikahan ke-1 · bagi Siti Antarmuka ke-2 · 12 Juni 1995" — urutan dihitung
+ * dari sisi masing-masing orang, jadi bila berbeda keduanya ditampilkan.
+ */
 function metaPasangan(pasangan) {
   const bagian = [`Pernikahan ke-${pasangan.urutan}`];
+  if (pasangan.urutanPasangan && pasangan.urutanPasangan !== pasangan.urutan) {
+    bagian.push(`bagi ${pasangan.orang?.nama ?? "pasangannya"} ke-${pasangan.urutanPasangan}`);
+  }
   if (pasangan.tanggalMenikah) bagian.push(formatTanggal(pasangan.tanggalMenikah));
   return bagian.join(" · ");
 }
@@ -573,7 +581,8 @@ async function bukaRinci(orangId) {
     .filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
     .map((satu) => ({
       pasanganId: satu.id,
-      urutan: satu.urutan,
+      urutan: satu.orangAId === orangId ? satu.urutanA : satu.urutanB,
+      urutanPasangan: satu.orangAId === orangId ? satu.urutanB : satu.urutanA,
       tanggalMenikah: satu.tanggalMenikah,
       orang: cari(satu.orangAId === orangId ? satu.orangBId : satu.orangAId),
     }))
@@ -607,6 +616,7 @@ async function bukaRinci(orangId) {
 
     <section class="blok">
       <h4>Pasangan &amp; pernikahan</h4>
+      <p class="keterangan kecil">Urutan pernikahan dihitung dari sisi masing-masing orang.</p>
       ${
         pasangan.length
           ? `<ul class="daftar-relasi">${pasangan
@@ -632,9 +642,6 @@ async function bukaRinci(orangId) {
                 <select data-isian="pasangan" ${calon.length ? "" : "disabled"}>${opsi(calon)}</select>
               </label>`
         }
-        <label class="isian-pasangan">Urutan pernikahan
-          <input type="number" data-isian="urutan" min="1" max="30" placeholder="1" value="${sedangUbah ? sedangUbah.urutan : ""}" />
-        </label>
         <label class="isian-pasangan">Tanggal menikah
           <input type="text" data-isian="tanggalMenikah" inputmode="numeric" maxlength="10" placeholder="1965-06-12" value="${esc(sedangUbah?.tanggalMenikah ?? "")}" />
         </label>
@@ -729,12 +736,8 @@ async function bukaRinci(orangId) {
 
   panel.querySelector('[data-aksi="simpan-pasangan"]').addEventListener("click", async () => {
     const form = panel.querySelector(".form-pasangan");
-    const urutanMentah = String(form.querySelector('[data-isian="urutan"]').value ?? "").trim();
     const tanggalMentah = String(form.querySelector('[data-isian="tanggalMenikah"]').value ?? "").trim();
-    const data = {
-      ...(urutanMentah ? { urutan: Number(urutanMentah) } : {}),
-      tanggalMenikah: tanggalMentah === "" ? null : tanggalMentah,
-    };
+    const data = { tanggalMenikah: tanggalMentah === "" ? null : tanggalMentah };
     try {
       if (state.ubahPasangan) {
         await api.ubahPasangan(state.ruang.id, state.ubahPasangan, data);

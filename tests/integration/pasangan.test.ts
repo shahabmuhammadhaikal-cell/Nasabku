@@ -25,7 +25,7 @@ describe("pasangan", () => {
     expect(dariIstri.body.jumlah).toBe(1);
   });
 
-  it("mencatat tanggal dan urutan pernikahan, lalu bisa diubah", async () => {
+  it("menghitung urutan pernikahan menurut masing-masing orang", async () => {
     const { app } = buatAplikasiUji();
     const { agen } = await daftar(app);
     const ruangId = await buatRuang(agen);
@@ -36,29 +36,50 @@ describe("pasangan", () => {
     });
     const istriKedua = await buatOrang(agen, ruangId, "Istri Kedua", {
       jenisKelamin: "P",
-      tanggalLahir: "1965",
+      tanggalLahir: "1955",
     });
 
     const pertama = await agen.post(`/api/v1/workspaces/${ruangId}/partners`).send({
       orangAId: suami,
       orangBId: istriPertama,
       tanggalMenikah: "1975-06-12",
-      urutan: 1,
     });
     expect(pertama.status).toBe(201);
-    expect(pertama.body.pasangan).toMatchObject({ tanggalMenikah: "1975-06-12", urutan: 1 });
+    expect(pertama.body.pasangan.tanggalMenikah).toBe("1975-06-12");
 
     const kedua = await agen
       .post(`/api/v1/workspaces/${ruangId}/partners`)
       .send({ orangAId: suami, orangBId: istriKedua, tanggalMenikah: "1985" });
     expect(kedua.status).toBe(201);
-    expect(kedua.body.pasangan.urutan).toBe(2);
 
+    const urutUntuk = (daftar: { orangAId: string; orangBId: string; urutanA: number; urutanB: number; tanggalMenikah: string | null }[], orangId: string) =>
+      daftar
+        .filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
+        .map((satu) => ({
+          tanggal: satu.tanggalMenikah,
+          urutan: satu.orangAId === orangId ? satu.urutanA : satu.urutanB,
+        }))
+        .sort((a, b) => a.urutan - b.urutan);
+
+    const awal = (await agen.get(`/api/v1/workspaces/${ruangId}/partners`)).body.pasangan;
+    expect(urutUntuk(awal, suami).map((satu) => satu.urutan)).toEqual([1, 2]);
+    expect(urutUntuk(awal, suami).map((satu) => satu.tanggal)).toEqual(["1975-06-12", "1985"]);
+    // Bagi masing-masing istri, pernikahan itu adalah yang pertama.
+    expect(urutUntuk(awal, istriPertama).map((satu) => satu.urutan)).toEqual([1]);
+    expect(urutUntuk(awal, istriKedua).map((satu) => satu.urutan)).toEqual([1]);
+
+    // Tanggal yang diubah mengubah urutan, tanpa menyimpan nomor apa pun.
     const ubah = await agen
       .patch(`/api/v1/workspaces/${ruangId}/partners/${kedua.body.pasangan.id}`)
-      .send({ tanggalMenikah: "1986-01-05", urutan: 3 });
+      .send({ tanggalMenikah: "1974-01-05" });
     expect(ubah.status).toBe(200);
-    expect(ubah.body.pasangan).toMatchObject({ tanggalMenikah: "1986-01-05", urutan: 3 });
+    expect(ubah.body.pasangan.tanggalMenikah).toBe("1974-01-05");
+
+    const setelah = (await agen.get(`/api/v1/workspaces/${ruangId}/partners`)).body.pasangan;
+    expect(urutUntuk(setelah, suami).map((satu) => satu.tanggal)).toEqual([
+      "1974-01-05",
+      "1975-06-12",
+    ]);
   });
 
   it("menolak tanggal menikah tidak sah dan urutan di luar batas", async () => {
@@ -78,12 +99,7 @@ describe("pasangan", () => {
       .post(`/api/v1/workspaces/${ruangId}/partners`)
       .send({ orangAId: a, orangBId: b, tanggalMenikah: "1975-02-30" });
     expect(tanggalSalah.status).toBe(422);
-
-    const urutanSalah = await agen
-      .post(`/api/v1/workspaces/${ruangId}/partners`)
-      .send({ orangAId: a, orangBId: b, urutan: 0 });
-    expect(urutanSalah.status).toBe(422);
-    expect(urutanSalah.body.error.rincian.field).toBe("urutan");
+    expect(tanggalSalah.body.error.rincian.field).toBe("tanggalMenikah");
   });
 
   it("menghitung pasangan pada statistik dan ekspor JSON", async () => {

@@ -1,4 +1,5 @@
 import type { DataOrang, Orang, Pasangan, Relasi, RuangKerja } from "../data/tipe.js";
+import { bandingkanPernikahan } from "./pernikahan.js";
 import { parseTanggal } from "./tanggal.js";
 
 const BULAN_GEDCOM = [
@@ -230,17 +231,21 @@ export function buatGedcom(
     if (keterangan) tulisTeks(keluar, 1, "NOTE", keterangan);
   }
 
-  // Keluarga diurutkan menurut urutan pernikahan agar "istri/suami ke-1, ke-2" tetap terbaca.
+  // Keluarga diurutkan menurut tanggal pernikahan supaya urutan pernikahan tetap terbaca.
   const daftarKeluarga = [...keluarga.entries()]
     .map(([kunci, isi]) => ({
       ...isi,
       kunci,
       pasangan: pasanganPerPasangan.get([...isi.orangTua].sort().join("|")) ?? null,
     }))
-    .sort(
-      (a, b) =>
-        (a.pasangan?.urutan ?? 99) - (b.pasangan?.urutan ?? 99) || a.kunci.localeCompare(b.kunci),
-    );
+    .sort((a, b) => {
+      if (a.pasangan && b.pasangan) {
+        return bandingkanPernikahan(a.pasangan, b.pasangan) || a.kunci.localeCompare(b.kunci);
+      }
+      if (a.pasangan) return -1;
+      if (b.pasangan) return 1;
+      return a.kunci.localeCompare(b.kunci);
+    });
 
   let nomor = 0;
   for (const satu of daftarKeluarga) {
