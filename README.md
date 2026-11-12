@@ -94,24 +94,29 @@ Aturan ini **belum pernah terpasang**, jadi proyek masih memakai aturan bawaan C
 dalam mode uji, klien mana pun yang punya API key masih bisa membaca/menulis sampai masa ujinya habis).
 Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peramban.
 
-1. **Prasyarat.** Node.js 22+ dan akun Google yang punya akses ke proyek `nasabku-prod` dengan peran
-   *Owner*, *Editor*, atau *Firebase Rules Admin*. Tanpa peran itu deploy akan ditolak `403`.
+1. **Prasyarat.** Node.js 22+, akun Google yang punya akses ke proyek `nasabku-prod` dengan peran
+   *Owner*, *Editor*, atau *Firebase Rules Admin*, dan dependensi yang sudah terpasang (`npm ci`).
+   Tanpa peran itu deploy akan ditolak `403`.
+
+   `firebase-tools` adalah **devDependency dengan versi terkunci** (`15.36.0`) di `package.json`, jadi
+   perintah `npx firebase …` di bawah memakai versi itu tanpa mengunduh ulang dan hasil deploy tidak
+   berubah diam-diam saat ada rilis baru.
 2. **Masuk ke Firebase.**
 
    ```bash
-   npx firebase-tools@latest login
+   npx firebase login
    ```
 
    Peramban terbuka; pilih akun yang punya akses proyek lalu **Allow**. Bila mesin tanpa peramban
-   (SSH/server): jalankan `npx firebase-tools@latest login --no-localhost`, buka URL yang dicetak, lalu
+   (SSH/server): jalankan `npx firebase login --no-localhost`, buka URL yang dicetak, lalu
    tempelkan kode balasan (boleh juga langsung sebagai argumen: `... login --no-localhost <kode>`).
    Untuk CI: setel `GOOGLE_APPLICATION_CREDENTIALS` ke berkas service account dan tambahkan
    `--non-interactive` (flag global, boleh diletakkan sebelum atau sesudah subperintah).
 3. **Pastikan akun dan proyeknya benar.**
 
    ```bash
-   npx firebase-tools@latest projects:list          # 'nasabku-prod' harus muncul
-   npx firebase-tools@latest use nasabku-prod       # set proyek aktif untuk direktori ini
+   npx firebase projects:list          # 'nasabku-prod' harus muncul
+   npx firebase use nasabku-prod       # set proyek aktif untuk direktori ini
    ```
 
    Alias proyek sudah tersimpan di `.firebaserc` (`default: nasabku-prod`) dan `firebase.json` sudah
@@ -125,8 +130,9 @@ Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peram
    npm run deploy:rules
    ```
 
-   Skrip itu menjalankan `npx firebase-tools@latest deploy --only firestore:rules --project nasabku-prod`
-   (lihat `package.json`), jadi proyek dan berkas aturannya tidak perlu diketik ulang.
+   Skrip itu menjalankan `firebase deploy --only firestore:rules --project nasabku-prod` memakai
+   `firebase-tools` yang terpasang lokal, jadi proyek, target, dan berkas aturannya tidak perlu diketik
+   ulang dan versinya selalu sama.
 
    Keluaran yang diharapkan: `✔ firestore: released rules firestore.rules to cloud.firestore`.
 6. **Periksa hasilnya.**
