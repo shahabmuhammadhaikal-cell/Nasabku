@@ -87,11 +87,70 @@ angka `tahunLahir`/`tahunWafat` tetap terbaca.
 - Semua kueri memakai kesetaraan satu field, jadi **tidak perlu indeks komposit**.
 
 Aturan keamanan (`firestore.rules`) menolak seluruh akses klien; hanya Admin SDK di server yang melewatinya.
-Terapkan dengan:
 
-```bash
-npx firebase-tools deploy --only firestore:rules --project nasabku-prod
-```
+### Menerapkan aturan keamanan ke `nasabku-prod`
+
+Aturan ini **belum pernah terpasang**, jadi proyek masih memakai aturan bawaan Console (bila database dibuat
+dalam mode uji, klien mana pun yang punya API key masih bisa membaca/menulis sampai masa ujinya habis).
+Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peramban.
+
+1. **Prasyarat.** Node.js 22+ dan akun Google yang punya akses ke proyek `nasabku-prod` dengan peran
+   *Owner*, *Editor*, atau *Firebase Rules Admin*. Tanpa peran itu deploy akan ditolak `403`.
+2. **Masuk ke Firebase.**
+
+   ```bash
+   npx firebase-tools@latest login
+   ```
+
+   Peramban terbuka; pilih akun yang punya akses proyek lalu **Allow**. Bila mesin tanpa peramban
+   (SSH/server): jalankan `npx firebase-tools@latest login --no-localhost`, buka URL yang dicetak, lalu
+   tempelkan kode balasan. Untuk CI: setel `GOOGLE_APPLICATION_CREDENTIALS` ke berkas service account dan
+   tambahkan `--non-interactive`.
+3. **Pastikan akun dan proyeknya benar.**
+
+   ```bash
+   npx firebase-tools@latest projects:list      # 'nasabku-prod' harus muncul
+   npx firebase-tools@latest use                # harus mencetak 'nasabku-prod'
+   ```
+
+   Alias proyek sudah tersimpan di `.firebaserc` (`default: nasabku-prod`) dan `firebase.json` sudah
+   menunjuk `firestore.rules`, jadi tidak perlu `firebase init` — jangan dijalankan karena bisa menimpa
+   konfigurasi ini.
+4. **Lihat dulu isi aturan yang akan dipasang.** `firestore.rules` sengaja menolak semua akses klien
+   (`allow read, write: if false`) karena browser tidak pernah bicara langsung ke Firestore.
+5. **Terapkan.**
+
+   ```bash
+   npx firebase-tools@latest deploy --only firestore:rules --project nasabku-prod
+   ```
+
+   Keluaran yang diharapkan: `✔ firestore: released rules firestore.rules to cloud.firestore`.
+6. **Periksa hasilnya.**
+   - **Console:** [Firebase Console](https://console.firebase.google.com/) → proyek `nasabku-prod` →
+     **Firestore Database** → tab **Rules**. Isinya harus `rules_version = '2';` dengan
+     `allow read, write: if false;`, dan ada keterangan waktu publikasi terbaru. Banner “mode uji” harus hilang.
+   - **Lewat Rules API (opsional, butuh `gcloud`):** pastikan yang aktif benar-benar berkas di repo.
+
+     ```bash
+     TOKEN="$(gcloud auth print-access-token)"
+     NAMA="$(curl -s -H "Authorization: Bearer $TOKEN" \
+       https://firebaserules.googleapis.com/v1/projects/nasabku-prod/releases \
+       | grep -o '"rulesetName": "[^"]*"' | head -1 | cut -d'"' -f4)"
+     curl -s -H "Authorization: Bearer $TOKEN" \
+       "https://firebaserules.googleapis.com/v1/projects/nasabku-prod/rulesets/$NAMA" \
+       | grep -c 'allow read, write: if false'   # hasil 1
+     ```
+   - **Aplikasi tetap jalan:** `curl -sS https://nasabku.onrender.com/api/v1/health/ready` menjawab
+     `"database":"tersedia"`, lalu masuk ke aplikasi dan buka satu ruang kerja. Server memakai Admin SDK,
+     yang memang melewati rules, jadi aturan ketat tidak boleh mengubah perilaku aplikasi.
+   - **Catatan verifikasi:** permintaan REST tanpa kredensial ke Firestore selalu `403` baik aturan ketat
+     maupun longgar, jadi `403` saja bukan bukti. Bukti yang sah adalah isi ruleset (langkah di atas) atau
+     tampilan tab **Rules**.
+
+   Perubahan aturan berlaku hingga sekitar satu menit setelah deploy.
+
+Bila ingin menguji aturan sebelum menyentuh produksi, jalankan emulator (`firebase emulators:start --only
+firestore`) dan arahkan aplikasi dengan `FIRESTORE_EMULATOR_HOST=localhost:8080`.
 
 ## API
 
