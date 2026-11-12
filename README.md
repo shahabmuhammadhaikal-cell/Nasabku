@@ -104,13 +104,14 @@ Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peram
 
    Peramban terbuka; pilih akun yang punya akses proyek lalu **Allow**. Bila mesin tanpa peramban
    (SSH/server): jalankan `npx firebase-tools@latest login --no-localhost`, buka URL yang dicetak, lalu
-   tempelkan kode balasan. Untuk CI: setel `GOOGLE_APPLICATION_CREDENTIALS` ke berkas service account dan
-   tambahkan `--non-interactive`.
+   tempelkan kode balasan (boleh juga langsung sebagai argumen: `... login --no-localhost <kode>`).
+   Untuk CI: setel `GOOGLE_APPLICATION_CREDENTIALS` ke berkas service account dan tambahkan
+   `--non-interactive` (flag global, boleh diletakkan sebelum atau sesudah subperintah).
 3. **Pastikan akun dan proyeknya benar.**
 
    ```bash
-   npx firebase-tools@latest projects:list      # 'nasabku-prod' harus muncul
-   npx firebase-tools@latest use                # harus mencetak 'nasabku-prod'
+   npx firebase-tools@latest projects:list          # 'nasabku-prod' harus muncul
+   npx firebase-tools@latest use nasabku-prod       # set proyek aktif untuk direktori ini
    ```
 
    Alias proyek sudah tersimpan di `.firebaserc` (`default: nasabku-prod`) dan `firebase.json` sudah
@@ -130,6 +131,8 @@ Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peram
      **Firestore Database** → tab **Rules**. Isinya harus `rules_version = '2';` dengan
      `allow read, write: if false;`, dan ada keterangan waktu publikasi terbaru. Banner “mode uji” harus hilang.
    - **Lewat Rules API (opsional, butuh `gcloud`):** pastikan yang aktif benar-benar berkas di repo.
+     `rulesetName` pada respons `releases` sudah berupa nama resource lengkap
+     (`projects/nasabku-prod/rulesets/<uuid>`), jadi jangan menambahkan awalan proyek lagi.
 
      ```bash
      TOKEN="$(gcloud auth print-access-token)"
@@ -137,7 +140,7 @@ Langkah berikut dijalankan **di komputer Anda**, bukan di lingkungan tanpa peram
        https://firebaserules.googleapis.com/v1/projects/nasabku-prod/releases \
        | grep -o '"rulesetName": "[^"]*"' | head -1 | cut -d'"' -f4)"
      curl -s -H "Authorization: Bearer $TOKEN" \
-       "https://firebaserules.googleapis.com/v1/projects/nasabku-prod/rulesets/$NAMA" \
+       "https://firebaserules.googleapis.com/v1/$NAMA" \
        | grep -c 'allow read, write: if false'   # hasil 1
      ```
    - **Aplikasi tetap jalan:** `curl -sS https://nasabku.onrender.com/api/v1/health/ready` menjawab
