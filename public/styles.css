@@ -982,3 +982,23 @@ textarea:focus-visible,
   font-size: 0.9rem;
   line-height: 1.45;
 }
+
+/* Bilah alat dengan banyak tombol: pencarian satu baris penuh, tombol menyusun diri. */
+@media (max-width: 720px) {
+  .alat-kanan {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .alat-kanan input[type="search"] {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .alat-kanan .tombol {
+    width: 100%;
+    padding-inline: 0.6rem;
+  }
+}
