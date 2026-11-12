@@ -1072,6 +1072,12 @@ textarea:focus-visible,
   stroke-width: 2;
 }
 
+/* Jalur pernikahan yang kotaknya tidak bersebelahan (istri/suami kedua dan seterusnya). */
+.pohon-nikah-jalur {
+  fill: none;
+  stroke-linejoin: round;
+}
+
 .pohon-lencana rect {
   fill: #eef5f0;
   stroke: #8fb3a5;

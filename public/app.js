@@ -867,24 +867,27 @@ async function bukaRinci(orangId) {
   }
 }
 
-const UKURAN_POHON = { lebar: 132, tinggi: 54, celah: 42, jarakX: 36, jarakY: 78 };
+const UKURAN_POHON = { lebar: 132, tinggi: 54, celah: 42, jarakX: 36, jarakY: 78, ruangAtas: 26 };
 
 function potongTeks(teks, maks) {
   return teks.length > maks ? `${teks.slice(0, maks - 1)}…` : teks;
 }
 
-/** Pasangan yang kedua ujungnya ikut digambar; dipilih yang paling awal menikah. */
-function pasanganDalamPohon(orangId, ada) {
-  return (
-    state.pasangan
-      .filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
-      .filter((satu) => ada.has(satu.orangAId) && ada.has(satu.orangBId))
-      .sort(
-        (a, b) =>
-          (a.tanggalMenikah ?? "9999").localeCompare(b.tanggalMenikah ?? "9999") ||
-          a.dibuatPada.localeCompare(b.dibuatPada),
-      )[0] ?? null
-  );
+/** Semua pernikahan orang ini yang kedua ujungnya ikut digambar, urut tanggal. */
+function perkawinanDalamPohon(orangId, ada) {
+  return state.pasangan
+    .filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
+    .filter((satu) => ada.has(satu.orangAId) && ada.has(satu.orangBId))
+    .sort(
+      (a, b) =>
+        (a.tanggalMenikah ?? "9999").localeCompare(b.tanggalMenikah ?? "9999") ||
+        a.dibuatPada.localeCompare(b.dibuatPada) ||
+        a.id.localeCompare(b.id),
+    )
+    .map((pasangan) => ({
+      pasangan,
+      lainId: pasangan.orangAId === orangId ? pasangan.orangBId : pasangan.orangAId,
+    }));
 }
 
 /**
@@ -896,35 +899,63 @@ function gambarPohonSvg(simpul) {
   const ada = new Set(simpul.map((s) => s.orang.id));
   const terpakai = new Set();
   const unit = [];
+  const cariSimpul = (id) => simpul.find((s) => s.orang.id === id) ?? null;
 
   for (const satu of simpul) {
     const id = satu.orang.id;
     if (terpakai.has(id)) continue;
 
-    const pasangan = pasanganDalamPohon(id, ada);
-    let kiri = satu;
-    let kanan = null;
-    if (pasangan) {
-      const idLain = pasangan.orangAId === id ? pasangan.orangBId : pasangan.orangAId;
-      if (!terpakai.has(idLain)) kanan = simpul.find((s) => s.orang.id === idLain) ?? null;
-    }
-    // Suami di kiri; bila jenis kelamin tidak jelas, urutan tetap seperti di server.
-    if (kanan && kiri.orang.jenisKelamin === "P" && kanan.orang.jenisKelamin !== "P") {
-      [kiri, kanan] = [kanan, kiri];
+    // Semua pernikahan orang ini ikut digabung — bukan hanya yang paling awal —
+    // supaya suami/istri berikutnya tampil berdampingan, bukan sebagai kartu tunggal.
+    const kawin = perkawinanDalamPohon(id, ada).filter(
+      (satuKawin) => !terpakai.has(satuKawin.lainId),
+    );
+    let anggota;
+
+    if (kawin.length === 0) {
+      anggota = [{ simpul: satu, urutan: null }];
+    } else if (kawin.length === 1) {
+      let kiri = satu;
+      let kanan = cariSimpul(kawin[0].lainId);
+      if (!kanan) {
+        anggota = [{ simpul: satu, urutan: null }];
+      } else {
+        // Suami di kiri; bila jenis kelamin tidak jelas, urutan tetap seperti di server.
+        if (kiri.orang.jenisKelamin === "P" && kanan.orang.jenisKelamin !== "P") {
+          [kiri, kanan] = [kanan, kiri];
+        }
+        anggota = [
+          { simpul: kiri, urutan: urutanBagiOrang(kawin[0].pasangan, kiri.orang.id) },
+          { simpul: kanan, urutan: urutanBagiOrang(kawin[0].pasangan, kanan.orang.id) },
+        ];
+      }
+    } else {
+      // Beberapa pernikahan: orang ini di tengah, pasangan pertama di kiri, dan
+      // pasangan berikutnya berderet ke kanan menurut tanggal pernikahan.
+      const kiri = cariSimpul(kawin[0].lainId);
+      if (!kiri) {
+        anggota = [{ simpul: satu, urutan: null }];
+      } else {
+        anggota = [
+          { simpul: kiri, urutan: urutanBagiOrang(kawin[0].pasangan, kiri.orang.id) },
+          { simpul: satu, urutan: null },
+          ...kawin.slice(1).flatMap((satuKawin) => {
+            const orang = cariSimpul(satuKawin.lainId);
+            if (!orang) return [];
+            return [
+              {
+                simpul: orang,
+                urutan: urutanBagiOrang(satuKawin.pasangan, orang.orang.id),
+              },
+            ];
+          }),
+        ];
+      }
     }
 
-    const anggota = [
-      { simpul: kiri, urutan: pasangan ? urutanBagiOrang(pasangan, kiri.orang.id) : null },
-    ];
-    terpakai.add(kiri.orang.id);
-    if (kanan) {
-      anggota.push({ simpul: kanan, urutan: urutanBagiOrang(pasangan, kanan.orang.id) });
-      terpakai.add(kanan.orang.id);
-    }
-
+    for (const a of anggota) terpakai.add(a.simpul.orang.id);
     unit.push({
       anggota,
-      pasangan,
       kedalaman: Math.max(...anggota.map((a) => a.simpul.kedalaman)),
       lebar: anggota.length * UKURAN_POHON.lebar + (anggota.length - 1) * UKURAN_POHON.celah,
     });
@@ -942,14 +973,15 @@ function gambarPohonSvg(simpul) {
     daftar.reduce((total, satu) => total + satu.lebar + UKURAN_POHON.jarakX, -UKURAN_POHON.jarakX);
   const lebar = Math.max(...angkatan.map((k) => lebarBaris(perAngkatan.get(k))), UKURAN_POHON.lebar);
   const tinggi =
-    angkatan.length * (UKURAN_POHON.tinggi + UKURAN_POHON.jarakY) - UKURAN_POHON.jarakY;
+    UKURAN_POHON.ruangAtas +
+    angkatan.length * (UKURAN_POHON.tinggi + UKURAN_POHON.jarakY) -
+    UKURAN_POHON.jarakY;
 
   const posisi = new Map();
-  const unitOrang = new Map();
   for (const k of angkatan) {
     const daftar = perAngkatan.get(k);
     let x = (lebar - lebarBaris(daftar)) / 2;
-    const y = k * (UKURAN_POHON.tinggi + UKURAN_POHON.jarakY);
+    const y = UKURAN_POHON.ruangAtas + k * (UKURAN_POHON.tinggi + UKURAN_POHON.jarakY);
     for (const satu of daftar) {
       satu.x = x;
       satu.y = y;
@@ -958,8 +990,8 @@ function gambarPohonSvg(simpul) {
         posisi.set(a.simpul.orang.id, {
           x: x + i * (UKURAN_POHON.lebar + UKURAN_POHON.celah),
           y,
+          nama: a.simpul.orang.nama,
         });
-        unitOrang.set(a.simpul.orang.id, satu);
       });
       x += satu.lebar + UKURAN_POHON.jarakX;
     }
@@ -967,46 +999,76 @@ function gambarPohonSvg(simpul) {
 
   const garis = [];
 
-  // Garis pernikahan + lencana urutan di antara suami–istri.
-  for (const satu of unit) {
-    if (satu.anggota.length < 2) continue;
-    const a = posisi.get(satu.anggota[0].simpul.orang.id);
-    const b = posisi.get(satu.anggota[1].simpul.orang.id);
-    const y = a.y + UKURAN_POHON.tinggi / 2;
-    garis.push(
-      `<line class="pohon-nikah" x1="${a.x + UKURAN_POHON.lebar}" y1="${y}" x2="${b.x}" y2="${y}" />`,
-    );
-    const kiri = satu.anggota[0].urutan ?? 1;
-    const kanan = satu.anggota[1].urutan ?? kiri;
-    const label = kiri === kanan ? String(kiri) : `${kiri}/${kanan}`;
-    const judul = `Pernikahan ke-${kiri} bagi ${satu.anggota[0].simpul.orang.nama}, ke-${kanan} bagi ${satu.anggota[1].simpul.orang.nama}`;
-    const tengah = (a.x + UKURAN_POHON.lebar + b.x) / 2;
-    garis.push(
-      `<g class="pohon-lencana" transform="translate(${tengah - 14} ${y - 10})"><title>${esc(judul)}</title><rect width="28" height="20" rx="10" /><text x="14" y="13.5" text-anchor="middle">♥${esc(label)}</text></g>`,
-    );
+  // Garis pernikahan untuk SEMUA pernikahan yang kedua orangnya tampil: lurus bila
+  // kotaknya bersebelahan, jalur di atas baris bila tidak (mis. istri/suami kedua).
+  const laneTerpakai = new Map();
+  for (const satu of state.pasangan) {
+    const a = posisi.get(satu.orangAId);
+    const b = posisi.get(satu.orangBId);
+    if (!a || !b) continue;
+
+    const kiri = a.x <= b.x ? a : b;
+    const kanan = a.x <= b.x ? b : a;
+    const idKiri = a.x <= b.x ? satu.orangAId : satu.orangBId;
+    const idKanan = a.x <= b.x ? satu.orangBId : satu.orangAId;
+    const urutanKiri = urutanBagiOrang(satu, idKiri);
+    const urutanKanan = urutanBagiOrang(satu, idKanan);
+    const label = urutanKiri === urutanKanan ? String(urutanKiri) : `${urutanKiri}/${urutanKanan}`;
+    const judul = `Pernikahan ke-${urutanKiri} bagi ${kiri.nama}, ke-${urutanKanan} bagi ${kanan.nama}`;
+    const lencana = (x, y) =>
+      `<g class="pohon-lencana" transform="translate(${x - 14} ${y - 10})"><title>${esc(judul)}</title><rect width="28" height="20" rx="10" /><text x="14" y="13.5" text-anchor="middle">♥${esc(label)}</text></g>`;
+
+    const bersebelahan =
+      kiri.y === kanan.y &&
+      Math.abs(kanan.x - kiri.x - (UKURAN_POHON.lebar + UKURAN_POHON.celah)) < 0.5;
+
+    if (bersebelahan) {
+      const y = kiri.y + UKURAN_POHON.tinggi / 2;
+      garis.push(
+        `<line class="pohon-nikah" x1="${kiri.x + UKURAN_POHON.lebar}" y1="${y}" x2="${kanan.x}" y2="${y}" />`,
+      );
+      garis.push(lencana((kiri.x + UKURAN_POHON.lebar + kanan.x) / 2, y));
+    } else {
+      const lane = laneTerpakai.get(kiri.y) ?? 0;
+      laneTerpakai.set(kiri.y, lane + 1);
+      const yJalur = kiri.y - 12 - lane * 11;
+      const x1 = kiri.x + UKURAN_POHON.lebar / 2;
+      const x2 = kanan.x + UKURAN_POHON.lebar / 2;
+      garis.push(
+        `<path class="pohon-nikah pohon-nikah-jalur" d="M${x1} ${kiri.y} L${x1} ${yJalur} L${x2} ${yJalur} L${x2} ${kanan.y}" />`,
+      );
+      garis.push(lencana((x1 + x2) / 2, yJalur));
+    }
   }
 
-  // Garis orang tua → anak, keluar dari tengah unit pasangan.
+  // Garis orang tua → anak, keluar dari tengah kotak kedua orang tuanya.
   const sudah = new Set();
   for (const satu of simpul) {
     if (satu.lewat.length < 2) continue;
-    const induk = unitOrang.get(satu.lewat[satu.lewat.length - 2]);
-    const anak = unitOrang.get(satu.orang.id);
-    if (!induk || !anak) continue;
-    const kunci = `${induk.x}|${induk.y}|${satu.orang.id}`;
+    const kotakInduk = satu.lewat
+      .slice(-2)
+      .map((id) => posisi.get(id))
+      .filter(Boolean);
+    const anak = posisi.get(satu.orang.id);
+    if (!anak || kotakInduk.length === 0) continue;
+
+    const sumbuX =
+      kotakInduk.length === 2
+        ? (Math.min(...kotakInduk.map((k) => k.x)) +
+            UKURAN_POHON.lebar +
+            Math.max(...kotakInduk.map((k) => k.x))) /
+          2
+        : kotakInduk[0].x + UKURAN_POHON.lebar / 2;
+    const dariY = Math.min(...kotakInduk.map((k) => k.y)) + UKURAN_POHON.tinggi;
+    const kunci = `${Math.round(sumbuX)}|${dariY}|${satu.orang.id}`;
     if (sudah.has(kunci)) continue;
     sudah.add(kunci);
 
-    const kotakInduk = induk.anggota.map((a) => posisi.get(a.simpul.orang.id));
-    const sumbuX =
-      kotakInduk.length === 2
-        ? (kotakInduk[0].x + UKURAN_POHON.lebar + kotakInduk[1].x) / 2
-        : kotakInduk[0].x + UKURAN_POHON.lebar / 2;
-    const dariY = induk.y + UKURAN_POHON.tinggi;
     const keY = anak.y;
     const tengah = (dariY + keY) / 2;
+    const anakX = anak.x + UKURAN_POHON.lebar / 2;
     garis.push(
-      `<path class="pohon-garis" d="M${sumbuX} ${dariY} C ${sumbuX} ${tengah}, ${anak.tengah} ${tengah}, ${anak.tengah} ${keY}" />`,
+      `<path class="pohon-garis" d="M${sumbuX} ${dariY} C ${sumbuX} ${tengah}, ${anakX} ${tengah}, ${anakX} ${keY}" />`,
     );
   }
 
