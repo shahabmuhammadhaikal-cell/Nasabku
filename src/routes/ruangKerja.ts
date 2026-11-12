@@ -185,6 +185,8 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
       if (!kiri || !kanan || kiri === kanan) continue;
       const terbuat = await penyimpanan.buatPasangan(ruangKerja.id, kiri, kanan, {
         tanggalMenikah: keluarga.tanggalMenikah,
+        status: keluarga.status,
+        tanggalBerakhir: keluarga.tanggalBerakhir,
       });
       if (terbuat) pasanganBaru += 1;
     }

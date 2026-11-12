@@ -66,6 +66,8 @@ export interface Relasi {
   dibuatPada: string;
 }
 
+export type StatusPernikahan = "menikah" | "cerai" | "meninggal";
+
 /** Hubungan pasangan (suami–istri) tanpa membedakan urutan. */
 export interface Pasangan {
   id: string;
@@ -74,6 +76,10 @@ export interface Pasangan {
   orangBId: string;
   /** Tanggal pernikahan bertingkat: "1965", "1965-06", atau "1965-06-12". */
   tanggalMenikah: string | null;
+  /** Menikah, cerai, atau berakhir karena salah satu meninggal. */
+  status: StatusPernikahan;
+  /** Tanggal berakhirnya pernikahan (cerai/meninggal), bila diketahui. */
+  tanggalBerakhir: string | null;
   dibuatPada: string;
 }
 
@@ -83,6 +89,8 @@ export interface Pasangan {
  */
 export interface DataPasangan {
   tanggalMenikah: string | null;
+  status: StatusPernikahan;
+  tanggalBerakhir: string | null;
 }
 
 export function teks(nilai: unknown): string {
@@ -152,6 +160,9 @@ export function kePasangan(dokumen: Dokumen): Pasangan {
     orangBId: teks(data.orangBId),
     // Dokumen lama belum menyimpan tanggal menikah; dianggap belum diketahui.
     tanggalMenikah: teksAtauNull(data.tanggalMenikah),
+    status:
+      data.status === "cerai" || data.status === "meninggal" ? data.status : "menikah",
+    tanggalBerakhir: teksAtauNull(data.tanggalBerakhir),
     dibuatPada: teks(data.dibuatPada),
   };
 }

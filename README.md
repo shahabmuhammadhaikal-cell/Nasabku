@@ -73,7 +73,8 @@ ruangKerja/{id}/orang/{orangId}  { nama, namaLain, jenisKelamin, tanggalLahir, t
                                    tanggalWafat, tempatWafat, pekerjaan, tempatPemakaman,
                                    catatan, sumber, ... }
 ruangKerja/{id}/relasi/{orangTuaId_anakId}  { orangTuaId, anakId, dibuatPada }
-ruangKerja/{id}/pasangan/{idA_idB}          { orangAId, orangBId, tanggalMenikah, dibuatPada }
+ruangKerja/{id}/pasangan/{idA_idB}          { orangAId, orangBId, tanggalMenikah,
+                                             status, tanggalBerakhir, dibuatPada }
 ```
 
 Tanggal disimpan **bertingkat** — `"1954"`, `"1954-06"`, atau `"1954-06-12"` — supaya leluhur yang tanggal
@@ -110,8 +111,8 @@ Semua di bawah `/api/v1`. Sesi memakai cookie `HttpOnly` `nasabku_sesi`.
 | GET/PATCH/DELETE | `/workspaces/:id/persons/:orangId` | Detail / ubah / hapus. |
 | GET/POST | `/workspaces/:id/relations` | Daftar (`?orangId=`) / catat relasi orang tua–anak. |
 | DELETE | `/workspaces/:id/relations/:relasiId` | Lepas relasi. |
-| GET/POST | `/workspaces/:id/partners` | Daftar (`?orangId=`) / catat pernikahan: `{ orangAId, orangBId, tanggalMenikah? }`. |
-| PATCH | `/workspaces/:id/partners/:pasanganId` | Ubah tanggal menikah. |
+| GET/POST | `/workspaces/:id/partners` | Daftar (`?orangId=`) / catat pernikahan: `{ orangAId, orangBId, tanggalMenikah?, status?, tanggalBerakhir? }`. |
+| PATCH | `/workspaces/:id/partners/:pasanganId` | Ubah tanggal menikah, status, atau tanggal berakhir. |
 | DELETE | `/workspaces/:id/partners/:pasanganId` | Lepas hubungan pasangan. |
 | GET | `/workspaces/:id/stats` | Ringkasan jumlah orang, angkatan, akar/daun, rentang tahun lahir. |
 | GET | `/workspaces/:id/export` | Unduh seluruh data sebagai JSON; `?format=gedcom` untuk GEDCOM 5.5.1. |
@@ -134,6 +135,18 @@ sah **diabaikan** (tidak dikarang), relasi yang membentuk lingkaran dilewati, da
 Pernikahan ikut diekspor sebagai `FAM` dengan `HUSB`/`WIFE` dan `MARR`/`DATE` — termasuk pasangan yang belum
 memiliki anak tercatat — lalu dikembalikan menjadi hubungan pasangan beserta tanggal menikahnya saat diimpor.
 `FAM` diurutkan menurut tanggal pernikahan.
+
+Status pernikahan ditulis sebagai tag khusus `_STAT` (`menikah`, `cerai`, `meninggal`) yang diabaikan dengan
+aman oleh aplikasi lain. Perceraian memakai tag baku `DIV` beserta `DATE` tanggal berakhirnya, sedangkan
+pernikahan yang berakhir karena kematian memakai `_END`/`DATE` (kematiannya sendiri tetap tercatat sebagai
+`DEAT` pada individu). Saat impor, `DIV` selalu dibaca sebagai status `cerai`, dan `_STAT` menentukan sisanya.
+
+### Status pernikahan
+
+Setiap hubungan pasangan menyimpan `status` (`menikah`, `cerai`, atau `meninggal`) dan `tanggalBerakhir`
+(bertingkat seperti tanggal lain, boleh kosong). Status `menikah` selalu berarti belum berakhir, sehingga
+tanggal berakhir yang dikirim untuk status itu dibuang; tanggal berakhir tidak boleh lebih awal dari tanggal
+menikah. Data lama tanpa kolom ini dibaca sebagai `menikah`.
 
 ### Urutan pernikahan
 

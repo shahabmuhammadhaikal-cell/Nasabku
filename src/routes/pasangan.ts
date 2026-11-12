@@ -1,10 +1,45 @@
 import { Router } from "express";
 import type { Penyimpanan } from "../data/penyimpanan.js";
-import type { Pasangan } from "../data/tipe.js";
+import type { Pasangan, StatusPernikahan } from "../data/tipe.js";
 import { galat } from "../lib/kesalahan.js";
 import { tahunDari } from "../lib/tanggal.js";
 import { urutkanPerOrang } from "../lib/pernikahan.js";
 import { badanObjek, tanggalOpsional, teksWajib } from "../lib/validasi.js";
+
+function statusOpsional(badan: Record<string, unknown>): StatusPernikahan | undefined {
+  if (!("status" in badan) || badan.status === undefined) return undefined;
+  const nilai = badan.status;
+  if (nilai !== "menikah" && nilai !== "cerai" && nilai !== "meninggal") {
+    throw galat(
+      422,
+      "VALIDASI_GAGAL",
+      'Status pernikahan harus "menikah", "cerai", atau "meninggal".',
+      { field: "status" },
+    );
+  }
+  return nilai;
+}
+
+/**
+ * Pernikahan yang masih berjalan tidak punya tanggal berakhir; tanggal yang
+ * dikirim untuk status "menikah" dibuang agar data tetap konsisten.
+ */
+function rapikanTanggalBerakhir(
+  tanggalMenikah: string | null,
+  status: StatusPernikahan,
+  tanggalBerakhir: string | null,
+): string | null {
+  if (status === "menikah" || !tanggalBerakhir) return null;
+  if (tanggalMenikah && tanggalBerakhir < tanggalMenikah) {
+    throw galat(
+      422,
+      "VALIDASI_GAGAL",
+      "Tanggal berakhir tidak boleh lebih awal dari tanggal menikah.",
+      { field: "tanggalBerakhir" },
+    );
+  }
+  return tanggalBerakhir;
+}
 
 /** Pernikahan tidak mungkin terjadi sebelum kedua mempelai lahir. */
 function periksaTanggalMenikah(
@@ -65,8 +100,17 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       tahunDari(pertama.tanggalLahir),
       tahunDari(kedua.tanggalLahir),
     ]);
+    const status = statusOpsional(badan) ?? "menikah";
+    const tanggalBerakhir = rapikanTanggalBerakhir(
+      tanggalMenikah,
+      status,
+      tanggalOpsional(badan, "tanggalBerakhir", "Tanggal berakhir") ?? null,
+    );
+
     const pasangan = await penyimpanan.buatPasangan(idRuang, orangAId, orangBId, {
       tanggalMenikah,
+      status,
+      tanggalBerakhir,
     });
     if (!pasangan) {
       throw galat(409, "PASANGAN_SUDAH_ADA", "Hubungan pasangan ini sudah tercatat.");
@@ -89,6 +133,12 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       "tanggalMenikah" in badan
         ? (tanggalOpsional(badan, "tanggalMenikah", "Tanggal menikah") ?? null)
         : lama.tanggalMenikah;
+    const status = "status" in badan ? (statusOpsional(badan) ?? lama.status) : lama.status;
+    const tanggalBerakhirLama =
+      "tanggalBerakhir" in badan
+        ? (tanggalOpsional(badan, "tanggalBerakhir", "Tanggal berakhir") ?? null)
+        : lama.tanggalBerakhir;
+    const tanggalBerakhir = rapikanTanggalBerakhir(tanggalMenikah, status, tanggalBerakhirLama);
     const [orangA, orangB] = await Promise.all([
       penyimpanan.ambilOrang(idRuang, lama.orangAId),
       penyimpanan.ambilOrang(idRuang, lama.orangBId),
@@ -98,7 +148,11 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       tahunDari(orangB?.tanggalLahir ?? null),
     ]);
 
-    const pasangan = await penyimpanan.ubahPasangan(idRuang, id, { tanggalMenikah });
+    const pasangan = await penyimpanan.ubahPasangan(idRuang, id, {
+      tanggalMenikah,
+      status,
+      tanggalBerakhir,
+    });
     if (!pasangan) throw galat(404, "PASANGAN_TIDAK_DITEMUKAN", "Hubungan pasangan tidak ditemukan.");
     const [berurut] = urutkanPerOrang(await penyimpanan.daftarPasangan(idRuang)).filter(
       (satu) => satu.id === pasangan.id,

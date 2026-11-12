@@ -279,11 +279,31 @@ function peristiwaKronologi() {
     if (!Number.isInteger(tahunMenikah) || tahunMenikah <= 0) continue;
     const namaA = namaOrang(satu.orangAId);
     const namaB = namaOrang(satu.orangBId);
+    const statusTeks =
+      satu.status === "cerai"
+        ? "bercerai"
+        : satu.status === "meninggal"
+          ? "berakhir karena kematian"
+          : null;
     daftar.push({
       tahun: tahunMenikah,
       nama: `${namaA} & ${namaB}`,
-      teks: `menikah (ke-${satu.urutanA} bagi ${namaA}, ke-${satu.urutanB} bagi ${namaB})`,
+      teks: `menikah (ke-${satu.urutanA} bagi ${namaA}, ke-${satu.urutanB} bagi ${namaB})${
+        statusTeks ? ` · ${statusTeks}` : ""
+      }`,
     });
+
+    const tahunBerakhir = Number(String(satu.tanggalBerakhir ?? "").slice(0, 4));
+    if (satu.status !== "menikah" && Number.isInteger(tahunBerakhir) && tahunBerakhir > 0) {
+      daftar.push({
+        tahun: tahunBerakhir,
+        nama: `${namaA} & ${namaB}`,
+        teks:
+          satu.status === "cerai"
+            ? "bercerai"
+            : "pernikahan berakhir (salah satu meninggal)",
+      });
+    }
   }
 
   return daftar.sort(
@@ -438,6 +458,17 @@ function metaPasangan(pasangan) {
     bagian.push(`bagi ${pasangan.orang?.nama ?? "pasangannya"} ke-${pasangan.urutanPasangan}`);
   }
   if (pasangan.tanggalMenikah) bagian.push(formatTanggal(pasangan.tanggalMenikah));
+  if (pasangan.status === "cerai") {
+    bagian.push(
+      pasangan.tanggalBerakhir ? `bercerai ${formatTanggal(pasangan.tanggalBerakhir)}` : "bercerai",
+    );
+  } else if (pasangan.status === "meninggal") {
+    bagian.push(
+      pasangan.tanggalBerakhir
+        ? `pasangan meninggal ${formatTanggal(pasangan.tanggalBerakhir)}`
+        : "pasangan meninggal",
+    );
+  }
   return bagian.join(" · ");
 }
 
@@ -584,10 +615,13 @@ async function bukaRinci(orangId) {
       urutan: satu.orangAId === orangId ? satu.urutanA : satu.urutanB,
       urutanPasangan: satu.orangAId === orangId ? satu.urutanB : satu.urutanA,
       tanggalMenikah: satu.tanggalMenikah,
+      status: satu.status,
+      tanggalBerakhir: satu.tanggalBerakhir,
       orang: cari(satu.orangAId === orangId ? satu.orangBId : satu.orangAId),
     }))
     .sort((a, b) => a.urutan - b.urutan);
   const sedangUbah = pasangan.find((satu) => satu.pasanganId === state.ubahPasangan) ?? null;
+  const statusAwal = sedangUbah?.status ?? "menikah";
   const orangTua = relasi
     .filter((r) => r.anakId === orangId)
     .map((r) => ({ relasiId: r.id, orang: cari(r.orangTuaId) }));
@@ -644,6 +678,16 @@ async function bukaRinci(orangId) {
         }
         <label class="isian-pasangan">Tanggal menikah
           <input type="text" data-isian="tanggalMenikah" inputmode="numeric" maxlength="10" placeholder="1965-06-12" value="${esc(sedangUbah?.tanggalMenikah ?? "")}" />
+        </label>
+        <label class="isian-pasangan">Status pernikahan
+          <select data-isian="status">
+            <option value="menikah" ${statusAwal === "menikah" ? "selected" : ""}>Masih menikah</option>
+            <option value="cerai" ${statusAwal === "cerai" ? "selected" : ""}>Bercerai</option>
+            <option value="meninggal" ${statusAwal === "meninggal" ? "selected" : ""}>Pasangan meninggal</option>
+          </select>
+        </label>
+        <label class="isian-pasangan">Tanggal berakhir
+          <input type="text" data-isian="tanggalBerakhir" inputmode="numeric" maxlength="10" placeholder="1990-03-04" value="${esc(sedangUbah?.tanggalBerakhir ?? "")}" ${statusAwal === "menikah" ? "disabled" : ""} />
         </label>
         <div class="tombol-baris pasangan-tombol">
           <button type="button" class="tombol tombol-samar kecil" data-aksi="simpan-pasangan" ${!sedangUbah && !calon.length ? "disabled" : ""}>${sedangUbah ? "Simpan" : "Tambah"}</button>
@@ -737,7 +781,15 @@ async function bukaRinci(orangId) {
   panel.querySelector('[data-aksi="simpan-pasangan"]').addEventListener("click", async () => {
     const form = panel.querySelector(".form-pasangan");
     const tanggalMentah = String(form.querySelector('[data-isian="tanggalMenikah"]').value ?? "").trim();
-    const data = { tanggalMenikah: tanggalMentah === "" ? null : tanggalMentah };
+    const status = form.querySelector('[data-isian="status"]')?.value ?? "menikah";
+    const berakhirMentah = String(
+      form.querySelector('[data-isian="tanggalBerakhir"]')?.value ?? "",
+    ).trim();
+    const data = {
+      tanggalMenikah: tanggalMentah === "" ? null : tanggalMentah,
+      status,
+      tanggalBerakhir: status === "menikah" || berakhirMentah === "" ? null : berakhirMentah,
+    };
     try {
       if (state.ubahPasangan) {
         await api.ubahPasangan(state.ruang.id, state.ubahPasangan, data);
@@ -757,6 +809,12 @@ async function bukaRinci(orangId) {
   panel.querySelector('[data-aksi="batal-pasangan"]')?.addEventListener("click", async () => {
     state.ubahPasangan = null;
     await bukaRinci(orang.id);
+  });
+
+  panel.querySelector('[data-isian="status"]')?.addEventListener("change", (peristiwa) => {
+    const input = panel.querySelector('[data-isian="tanggalBerakhir"]');
+    input.disabled = peristiwa.target.value === "menikah";
+    if (input.disabled) input.value = "";
   });
 
   panel.addEventListener("click", async (peristiwa) => {

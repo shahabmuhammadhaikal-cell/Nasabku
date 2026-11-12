@@ -1,4 +1,11 @@
-import type { DataOrang, Orang, Pasangan, Relasi, RuangKerja } from "../data/tipe.js";
+import type {
+  DataOrang,
+  Orang,
+  Pasangan,
+  Relasi,
+  RuangKerja,
+  StatusPernikahan,
+} from "../data/tipe.js";
 import { bandingkanPernikahan } from "./pernikahan.js";
 import { parseTanggal } from "./tanggal.js";
 
@@ -264,6 +271,20 @@ export function buatGedcom(
       keluar.push("1 MARR");
       keluar.push(`2 DATE ${tanggalMenikah}`);
     }
+    if (satu.pasangan) {
+      const status = satu.pasangan.status;
+      const tanggalBerakhir = tanggalKeGedcom(satu.pasangan.tanggalBerakhir);
+      // DIV adalah tag baku GEDCOM untuk perceraian; status lain memakai tag
+      // khusus (diawali garis bawah) yang diabaikan dengan aman oleh aplikasi lain.
+      keluar.push(`1 _STAT ${status}`);
+      if (status === "cerai") {
+        keluar.push("1 DIV");
+        if (tanggalBerakhir) keluar.push(`2 DATE ${tanggalBerakhir}`);
+      } else if (status === "meninggal") {
+        keluar.push("1 _END");
+        if (tanggalBerakhir) keluar.push(`2 DATE ${tanggalBerakhir}`);
+      }
+    }
     for (const anak of satu.anak) {
       keluar.push(`1 CHIL ${label.get(anak) ?? ""}`);
     }
@@ -336,7 +357,13 @@ function potong(nilai: string, maks: number): string | null {
 
 export interface HasilImporGedcom {
   individu: { kunci: string; data: DataOrang }[];
-  keluarga: { orangTua: string[]; anak: string[]; tanggalMenikah: string | null }[];
+  keluarga: {
+    orangTua: string[];
+    anak: string[];
+    tanggalMenikah: string | null;
+    status: StatusPernikahan;
+    tanggalBerakhir: string | null;
+  }[];
   tanggalDiabaikan: number;
   namaKosong: number;
 }
@@ -428,6 +455,23 @@ export function bacaGedcom(teks: string): HasilImporGedcom {
     .map((simpul) => {
       const pernikahan = anakBertag(simpul, "MARR")[0];
       const tanggalMentah = pernikahan ? nilaiTag(pernikahan, "DATE") : "";
+      const perceraian = anakBertag(simpul, "DIV")[0];
+      const berakhir = anakBertag(simpul, "_END")[0];
+      const statusTertulis = nilaiTag(simpul, "_STAT").toLowerCase();
+
+      let status: StatusPernikahan = "menikah";
+      if (statusTertulis === "cerai" || statusTertulis === "meninggal") {
+        status = statusTertulis;
+      }
+      if (perceraian) status = "cerai";
+
+      const tanggalAkhir = (() => {
+        const sumber = perceraian ?? berakhir;
+        if (!sumber) return null;
+        const tanggal = nilaiTag(sumber, "DATE");
+        return tanggal ? gedcomKeTanggal(tanggal) : null;
+      })();
+
       return {
         orangTua: [...anakBertag(simpul, "HUSB"), ...anakBertag(simpul, "WIFE")]
           .map((satu) => satu.nilai.trim())
@@ -436,6 +480,8 @@ export function bacaGedcom(teks: string): HasilImporGedcom {
           .map((satu) => satu.nilai.trim())
           .filter(Boolean),
         tanggalMenikah: tanggalMentah ? gedcomKeTanggal(tanggalMentah) : null,
+        status,
+        tanggalBerakhir: tanggalAkhir,
       };
     })
     // Keluarga tanpa anak tetap dibaca agar pasangan tanpa keturunan tidak hilang.

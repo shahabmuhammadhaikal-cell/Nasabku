@@ -102,6 +102,53 @@ describe("pasangan", () => {
     expect(tanggalSalah.body.error.rincian.field).toBe("tanggalMenikah");
   });
 
+  it("menyimpan status pernikahan dan tanggal berakhirnya", async () => {
+    const { app } = buatAplikasiUji();
+    const { agen } = await daftar(app);
+    const ruangId = await buatRuang(agen);
+    const a = await buatOrang(agen, ruangId, "Suami", { tanggalLahir: "1950" });
+    const b = await buatOrang(agen, ruangId, "Istri", { jenisKelamin: "P", tanggalLahir: "1955" });
+
+    const tambah = await agen.post(`/api/v1/workspaces/${ruangId}/partners`).send({
+      orangAId: a,
+      orangBId: b,
+      tanggalMenikah: "1975-06-12",
+      status: "cerai",
+      tanggalBerakhir: "1990-05-01",
+    });
+    expect(tambah.status).toBe(201);
+    expect(tambah.body.pasangan).toMatchObject({
+      status: "cerai",
+      tanggalBerakhir: "1990-05-01",
+    });
+
+    const kembali = await agen
+      .patch(`/api/v1/workspaces/${ruangId}/partners/${tambah.body.pasangan.id}`)
+      .send({ status: "menikah" });
+    expect(kembali.status).toBe(200);
+    expect(kembali.body.pasangan).toMatchObject({ status: "menikah", tanggalBerakhir: null });
+
+    const statusSalah = await agen
+      .patch(`/api/v1/workspaces/${ruangId}/partners/${tambah.body.pasangan.id}`)
+      .send({ status: "janda" });
+    expect(statusSalah.status).toBe(422);
+    expect(statusSalah.body.error.rincian.field).toBe("status");
+
+    const terlaluAwal = await agen
+      .patch(`/api/v1/workspaces/${ruangId}/partners/${tambah.body.pasangan.id}`)
+      .send({ status: "cerai", tanggalBerakhir: "1970" });
+    expect(terlaluAwal.status).toBe(422);
+    expect(terlaluAwal.body.error.rincian.field).toBe("tanggalBerakhir");
+
+    const meninggal = await agen
+      .patch(`/api/v1/workspaces/${ruangId}/partners/${tambah.body.pasangan.id}`)
+      .send({ status: "meninggal", tanggalBerakhir: "2001-08" });
+    expect(meninggal.body.pasangan).toMatchObject({
+      status: "meninggal",
+      tanggalBerakhir: "2001-08",
+    });
+  });
+
   it("menghitung pasangan pada statistik dan ekspor JSON", async () => {
     const { app } = buatAplikasiUji();
     const { agen } = await daftar(app);

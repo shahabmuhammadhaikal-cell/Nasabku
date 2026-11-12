@@ -316,6 +316,8 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
         orangAId: kiri,
         orangBId: kanan,
         tanggalMenikah: data.tanggalMenikah ?? null,
+        status: data.status ?? "menikah",
+        tanggalBerakhir: data.tanggalBerakhir ?? null,
         dibuatPada,
       };
       const terbuat = await pasanganDi(ruangKerjaId).buat(id, { ...pasangan });

@@ -111,6 +111,8 @@ describe("GEDCOM", () => {
         ruangKerjaId: "r1",
         orangAId: "o1",
         orangBId: "o4",
+        status: "menikah",
+        tanggalBerakhir: null,
         dibuatPada: "2024-01-01T00:00:00.000Z",
       },
     ]);
@@ -118,6 +120,7 @@ describe("GEDCOM", () => {
     expect(berkas).toContain("0 @F1@ FAM");
     expect(berkas).toContain("1 HUSB @I1@");
     expect(berkas).toContain("1 WIFE @I2@");
+    expect(berkas).toContain("1 _STAT menikah");
     expect(berkas).not.toContain("1 CHIL");
   });
 
