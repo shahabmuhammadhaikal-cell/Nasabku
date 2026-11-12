@@ -73,6 +73,7 @@ ruangKerja/{id}/orang/{orangId}  { nama, namaLain, jenisKelamin, tanggalLahir, t
                                    tanggalWafat, tempatWafat, pekerjaan, tempatPemakaman,
                                    catatan, sumber, ... }
 ruangKerja/{id}/relasi/{orangTuaId_anakId}  { orangTuaId, anakId, dibuatPada }
+ruangKerja/{id}/pasangan/{idA_idB}          { orangAId, orangBId, dibuatPada }
 ```
 
 Tanggal disimpan **bertingkat** — `"1954"`, `"1954-06"`, atau `"1954-06-12"` — supaya leluhur yang tanggal
@@ -109,6 +110,8 @@ Semua di bawah `/api/v1`. Sesi memakai cookie `HttpOnly` `nasabku_sesi`.
 | GET/PATCH/DELETE | `/workspaces/:id/persons/:orangId` | Detail / ubah / hapus. |
 | GET/POST | `/workspaces/:id/relations` | Daftar (`?orangId=`) / catat relasi orang tua–anak. |
 | DELETE | `/workspaces/:id/relations/:relasiId` | Lepas relasi. |
+| GET/POST | `/workspaces/:id/partners` | Daftar (`?orangId=`) / catat hubungan pasangan (suami–istri). |
+| DELETE | `/workspaces/:id/partners/:pasanganId` | Lepas hubungan pasangan. |
 | GET | `/workspaces/:id/stats` | Ringkasan jumlah orang, angkatan, akar/daun, rentang tahun lahir. |
 | GET | `/workspaces/:id/export` | Unduh seluruh data sebagai JSON; `?format=gedcom` untuk GEDCOM 5.5.1. |
 | POST | `/workspaces/:id/import` | `{ gedcom }` → menambah orang dan relasi dari berkas GEDCOM. |
@@ -126,6 +129,9 @@ catatan, sumber), keluarga (HUSB/WIFE/CHIL), serta tanggal bertingkat yang dipet
 Impor menerima berkas GEDCOM dengan aturan yang sama: maksimal 2000 orang per impor, tanggal yang tidak
 sah **diabaikan** (tidak dikarang), relasi yang membentuk lingkaran dilewati, dan hasilnya dilaporkan di
 `{ impor: { orang, digabung, relasi, relasiDilewati, tanggalDiabaikan, namaDiabaikan } }`.
+
+Pasangan (suami–istri) juga ikut diekspor sebagai `FAM` dengan `HUSB`/`WIFE` — termasuk pasangan yang belum
+memiliki anak tercatat — dan dikembalikan menjadi hubungan pasangan saat diimpor.
 
 Impor **tidak menduplikasi**: orang yang namanya sama (tanpa peduli huruf besar/kecil, aksen, dan tanda
 baca), jenis kelaminnya tidak bertentangan, dan tahun lahirnya sama dianggap orang yang sudah tercatat.

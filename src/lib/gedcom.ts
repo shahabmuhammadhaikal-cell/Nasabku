@@ -1,4 +1,4 @@
-import type { DataOrang, Orang, Relasi, RuangKerja } from "../data/tipe.js";
+import type { DataOrang, Orang, Pasangan, Relasi, RuangKerja } from "../data/tipe.js";
 import { parseTanggal } from "./tanggal.js";
 
 const BULAN_GEDCOM = [
@@ -163,6 +163,7 @@ export function buatGedcom(
   ruangKerja: RuangKerja,
   semuaOrang: readonly Orang[],
   semuaRelasi: readonly Relasi[],
+  semuaPasangan: readonly Pasangan[] = [],
 ): string {
   const ada = new Set(semuaOrang.map((orang) => orang.id));
   const label = new Map<string, string>();
@@ -183,6 +184,14 @@ export function buatGedcom(
     const satu = keluarga.get(kunci) ?? { orangTua: [...orangTua].sort(), anak: [] };
     if (!satu.anak.includes(anak)) satu.anak.push(anak);
     keluarga.set(kunci, satu);
+  }
+
+  // Pasangan yang belum dianugerahi anak tetap dicatat sebagai keluarga tersendiri.
+  for (const satu of semuaPasangan) {
+    if (!ada.has(satu.orangAId) || !ada.has(satu.orangBId)) continue;
+    const urut = [satu.orangAId, satu.orangBId].sort();
+    const kunci = urut.join("|");
+    if (!keluarga.has(kunci)) keluarga.set(kunci, { orangTua: urut, anak: [] });
   }
 
   const keluar: string[] = [];
@@ -224,14 +233,13 @@ export function buatGedcom(
     nomor += 1;
     keluar.push(`0 @F${nomor}@ FAM`);
     const jenis = (id: string): string => peta.get(id)?.jenisKelamin ?? "U";
-    const ayah = satu.orangTua.find((id) => jenis(id) === "L");
-    const ibu = satu.orangTua.find((id) => jenis(id) === "P");
-    if (ayah) keluar.push(`1 HUSB ${label.get(ayah) ?? ""}`);
-    if (ibu) keluar.push(`1 WIFE ${label.get(ibu) ?? ""}`);
-    if (!ayah && !ibu) {
-      const pertama = satu.orangTua[0];
-      if (pertama) keluar.push(`1 HUSB ${label.get(pertama) ?? ""}`);
-    }
+    const bobot = (nilai: string): number => (nilai === "L" ? 0 : nilai === "P" ? 1 : 2);
+    const urut = [...satu.orangTua].sort(
+      (a, b) => bobot(jenis(a)) - bobot(jenis(b)) || a.localeCompare(b),
+    );
+    const [pertama, kedua] = urut;
+    if (pertama) keluar.push(`1 HUSB ${label.get(pertama) ?? ""}`);
+    if (kedua) keluar.push(`1 WIFE ${label.get(kedua) ?? ""}`);
     for (const anak of satu.anak) {
       keluar.push(`1 CHIL ${label.get(anak) ?? ""}`);
     }
@@ -401,7 +409,8 @@ export function bacaGedcom(teks: string): HasilImporGedcom {
         .map((satu) => satu.nilai.trim())
         .filter(Boolean),
     }))
-    .filter((satu) => satu.orangTua.length > 0 && satu.anak.length > 0);
+    // Keluarga tanpa anak tetap dibaca agar pasangan tanpa keturunan tidak hilang.
+    .filter((satu) => satu.orangTua.length > 0);
 
   return { individu, keluarga, tanggalDiabaikan, namaKosong };
 }

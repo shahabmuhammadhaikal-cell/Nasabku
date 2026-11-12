@@ -38,6 +38,7 @@ describe("statistik silsilah", () => {
       tahunTermuda: null,
       jumlahAkar: 0,
       jumlahDaun: 0,
+      jumlahPasangan: 0,
     });
   });
 

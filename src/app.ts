@@ -5,6 +5,7 @@ import type { Penyimpanan } from "./data/penyimpanan.js";
 import { ruteAuth } from "./routes/auth.js";
 import { ruteKesehatan } from "./routes/health.js";
 import { ruteOrang } from "./routes/orang.js";
+import { rutePasangan } from "./routes/pasangan.js";
 import { ruteRelasi } from "./routes/relasi.js";
 import { ruteRuangKerja } from "./routes/ruangKerja.js";
 import { ruteSilsilah } from "./routes/silsilah.js";
@@ -49,6 +50,12 @@ export function buatAplikasi({ penyimpanan, konfigurasi }: KetergantunganAplikas
     wajibMasuk(penyimpanan),
     muatRuangKerja(penyimpanan),
     ruteRelasi(penyimpanan),
+  );
+  api.use(
+    "/workspaces/:workspaceId/partners",
+    wajibMasuk(penyimpanan),
+    muatRuangKerja(penyimpanan),
+    rutePasangan(penyimpanan),
   );
   api.use(
     "/workspaces/:workspaceId/tree",

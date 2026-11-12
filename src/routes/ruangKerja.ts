@@ -39,21 +39,23 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
     const id = req.ruangKerja?.id;
     if (!id) throw galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan.");
 
-    const [orang, relasi] = await Promise.all([
+    const [orang, relasi, pasangan] = await Promise.all([
       penyimpanan.daftarOrang(id, { batas: BATAS_DOKUMEN }),
       penyimpanan.daftarRelasi(id),
+      penyimpanan.daftarPasangan(id),
     ]);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ statistik: hitungStatistik(orang, relasi) });
+    res.json({ statistik: hitungStatistik(orang, relasi, pasangan) });
   });
 
   rute.get("/:workspaceId/export", muatRuangKerja(penyimpanan), async (req, res) => {
     const ruangKerja = req.ruangKerja;
     if (!ruangKerja) throw galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan.");
 
-    const [orang, relasi] = await Promise.all([
+    const [orang, relasi, pasangan] = await Promise.all([
       penyimpanan.daftarOrang(ruangKerja.id, { batas: BATAS_DOKUMEN }),
       penyimpanan.daftarRelasi(ruangKerja.id),
+      penyimpanan.daftarPasangan(ruangKerja.id),
     ]);
 
     if (req.query.format === "gedcom") {
@@ -63,7 +65,7 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
         `attachment; filename="nasabku-${namaBerkas(ruangKerja.nama)}.ged"`,
       );
       res.setHeader("Cache-Control", "no-store");
-      res.send(buatGedcom(ruangKerja, orang, relasi));
+      res.send(buatGedcom(ruangKerja, orang, relasi, pasangan));
       return;
     }
 
@@ -84,9 +86,10 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
       versi: 1,
       dieksporPada: new Date().toISOString(),
       ruangKerja,
-      statistik: hitungStatistik(orang, relasi),
+      statistik: hitungStatistik(orang, relasi, pasangan),
       orang,
       relasi,
+      pasangan,
     });
   });
 
@@ -172,10 +175,23 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
       }
     }
 
+    let pasanganBaru = 0;
+    for (const keluarga of hasil.keluarga) {
+      const idOrangTua = keluarga.orangTua
+        .map((kunci) => idPerLabel.get(kunci))
+        .filter((nilai): nilai is string => Boolean(nilai));
+      const kiri = idOrangTua[0];
+      const kanan = idOrangTua[1];
+      if (!kiri || !kanan || kiri === kanan) continue;
+      const terbuat = await penyimpanan.buatPasangan(ruangKerja.id, kiri, kanan);
+      if (terbuat) pasanganBaru += 1;
+    }
+
     res.status(201).json({
       impor: {
         orang: hasil.individu.length,
         digabung,
+        pasangan: pasanganBaru,
         relasi: terbentuk.length,
         relasiDilewati,
         tanggalDiabaikan: hasil.tanggalDiabaikan,

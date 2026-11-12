@@ -929,3 +929,56 @@ textarea:focus-visible,
     flex: 1 1 45%;
   }
 }
+
+/* Kronologi keluarga */
+.kronologi {
+  margin: 0.6rem 1rem 0.4rem;
+  padding: 0.9rem 1rem 0.6rem;
+}
+
+.kronologi-kepala {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.kronologi-kepala h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.kronologi-daftar {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0 0 0 0.15rem;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.kronologi-daftar li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px dashed var(--garis);
+}
+
+.kronologi-daftar li:last-child {
+  border-bottom: 0;
+}
+
+.kronologi-tahun {
+  flex: 0 0 4ch;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--hijau);
+}
+
+.kronologi-isi {
+  font-size: 0.9rem;
+  line-height: 1.45;
+}

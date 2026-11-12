@@ -11,12 +11,21 @@ import type { BasisDokumen } from "./port.js";
 import type {
   DataOrang,
   Orang,
+  Pasangan,
   PenggunaPublik,
   PenggunaTersimpan,
   Relasi,
   RuangKerja,
 } from "./tipe.js";
-import { keOrang, kePengguna, kePenggunaTersimpan, keRelasi, keRuangKerja, teks } from "./tipe.js";
+import {
+  keOrang,
+  kePasangan,
+  kePengguna,
+  kePenggunaTersimpan,
+  keRelasi,
+  keRuangKerja,
+  teks,
+} from "./tipe.js";
 
 /** Batas dokumen yang dibaca per koleksi — cukup untuk satu silsilah keluarga besar. */
 export const BATAS_DOKUMEN = 5000;
@@ -45,6 +54,10 @@ export interface Penyimpanan {
   hapusOrang(ruangKerjaId: string, id: string): Promise<boolean>;
 
   daftarRelasi(ruangKerjaId: string, orangId?: string): Promise<Relasi[]>;
+  daftarPasangan(ruangKerjaId: string, orangId?: string): Promise<Pasangan[]>;
+  /** null berarti hubungan pasangan itu sudah tercatat. */
+  buatPasangan(ruangKerjaId: string, orangAId: string, orangBId: string): Promise<Pasangan | null>;
+  hapusPasangan(ruangKerjaId: string, id: string): Promise<boolean>;
   /** null berarti relasi orang tua–anak itu sudah tercatat. */
   buatRelasi(ruangKerjaId: string, orangTuaId: string, anakId: string): Promise<Relasi | null>;
   hapusRelasi(ruangKerjaId: string, id: string): Promise<boolean>;
@@ -78,6 +91,7 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
   const ruang = basis.koleksi(["ruangKerja"]);
   const orangDi = (ruangKerjaId: string) => basis.koleksi(["ruangKerja", ruangKerjaId, "orang"]);
   const relasiDi = (ruangKerjaId: string) => basis.koleksi(["ruangKerja", ruangKerjaId, "relasi"]);
+  const pasanganDi = (ruangKerjaId: string) => basis.koleksi(["ruangKerja", ruangKerjaId, "pasangan"]);
 
   const daftarRelasi = async (ruangKerjaId: string, orangId?: string): Promise<Relasi[]> => {
     const semua = (await relasiDi(ruangKerjaId).daftar(BATAS_DOKUMEN)).map(keRelasi);
@@ -184,6 +198,9 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
       for (const dokumen of await relasiDi(id).daftar(BATAS_DOKUMEN)) {
         await relasiDi(id).hapus(dokumen.id);
       }
+      for (const dokumen of await pasanganDi(id).daftar(BATAS_DOKUMEN)) {
+        await pasanganDi(id).hapus(dokumen.id);
+      }
       await ruang.hapus(id);
     },
 
@@ -238,6 +255,13 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
           await koleksiRelasi.hapus(dokumen.id);
         }
       }
+      const koleksiPasangan = pasanganDi(ruangKerjaId);
+      for (const dokumen of await koleksiPasangan.daftar(BATAS_DOKUMEN)) {
+        const pasangan = kePasangan(dokumen);
+        if (pasangan.orangAId === id || pasangan.orangBId === id) {
+          await koleksiPasangan.hapus(dokumen.id);
+        }
+      }
       await koleksiOrang.hapus(id);
       return true;
     },
@@ -259,6 +283,37 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
 
     async hapusRelasi(ruangKerjaId, id) {
       return relasiDi(ruangKerjaId).hapus(id);
+    },
+
+    async daftarPasangan(ruangKerjaId, orangId) {
+      const semua = (await pasanganDi(ruangKerjaId).daftar(BATAS_DOKUMEN)).map(kePasangan);
+      const saring = orangId
+        ? semua.filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
+        : semua;
+      return saring.sort(
+        (a, b) => a.dibuatPada.localeCompare(b.dibuatPada) || a.id.localeCompare(b.id),
+      );
+    },
+
+    async buatPasangan(ruangKerjaId, orangAId, orangBId) {
+      // Id deterministik dari pasangan id yang diurutkan: satu pasangan hanya bisa
+      // tercatat sekali, dan urutan siapa mendaftar tidak berpengaruh.
+      const urut = [orangAId, orangBId].sort();
+      const kiri = urut[0] ?? orangAId;
+      const kanan = urut[1] ?? orangBId;
+      const id = `${kiri}_${kanan}`;
+      const dibuatPada = new Date().toISOString();
+      const terbuat = await pasanganDi(ruangKerjaId).buat(id, {
+        ruangKerjaId,
+        orangAId: kiri,
+        orangBId: kanan,
+        dibuatPada,
+      });
+      return terbuat ? { id, ruangKerjaId, orangAId: kiri, orangBId: kanan, dibuatPada } : null;
+    },
+
+    async hapusPasangan(ruangKerjaId, id) {
+      return pasanganDi(ruangKerjaId).hapus(id);
     },
 
     async akanMembentukSiklus(ruangKerjaId, orangTuaId, anakId) {

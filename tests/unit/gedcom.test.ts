@@ -103,6 +103,24 @@ describe("GEDCOM", () => {
     expect(berkas).toContain("0 @F2@ FAM\n1 HUSB @I2@\n1 CHIL @I3@");
   });
 
+  it("menulis pasangan tanpa anak sebagai satu keluarga", () => {
+    const nenek = orang({ id: "o4", nama: "Nenek Gede", jenisKelamin: "P", tanggalLahir: "1945" });
+    const berkas = buatGedcom(ruang, [kakek, nenek], [], [
+      {
+        id: "o1_o4",
+        ruangKerjaId: "r1",
+        orangAId: "o1",
+        orangBId: "o4",
+        dibuatPada: "2024-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    expect(berkas).toContain("0 @F1@ FAM");
+    expect(berkas).toContain("1 HUSB @I1@");
+    expect(berkas).toContain("1 WIFE @I2@");
+    expect(berkas).not.toContain("1 CHIL");
+  });
+
   it("membaca kembali berkas hasil ekspor tanpa kehilangan keterangan", () => {
     const hasil = bacaGedcom(buatGedcom(ruang, [kakek, ayah, cucu], relasi));
 

@@ -66,6 +66,15 @@ export interface Relasi {
   dibuatPada: string;
 }
 
+/** Hubungan pasangan (suami–istri) tanpa membedakan urutan. */
+export interface Pasangan {
+  id: string;
+  ruangKerjaId: string;
+  orangAId: string;
+  orangBId: string;
+  dibuatPada: string;
+}
+
 export function teks(nilai: unknown): string {
   return typeof nilai === "string" ? nilai : String(nilai ?? "");
 }
@@ -121,6 +130,17 @@ export function keOrang(dokumen: Dokumen): Orang {
     sumber: teksAtauNull(data.sumber),
     dibuatPada: teks(data.dibuatPada),
     diperbaruiPada: teks(data.diperbaruiPada),
+  };
+}
+
+export function kePasangan(dokumen: Dokumen): Pasangan {
+  const { data } = dokumen;
+  return {
+    id: dokumen.id,
+    ruangKerjaId: teks(data.ruangKerjaId),
+    orangAId: teks(data.orangAId),
+    orangBId: teks(data.orangBId),
+    dibuatPada: teks(data.dibuatPada),
   };
 }
 

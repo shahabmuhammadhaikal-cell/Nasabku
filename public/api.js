@@ -121,6 +121,13 @@ export const api = {
     panggil(`/workspaces/${ruangId}/relations`, { metode: "POST", badan: { orangTuaId, anakId } }),
   hapusRelasi: (ruangId, id) => panggil(`/workspaces/${ruangId}/relations/${id}`, { metode: "DELETE" }),
 
+  pasangan: (ruangId, orangId) =>
+    panggil(`/workspaces/${ruangId}/partners${orangId ? `?orangId=${encodeURIComponent(orangId)}` : ""}`),
+  buatPasangan: (ruangId, orangAId, orangBId) =>
+    panggil(`/workspaces/${ruangId}/partners`, { metode: "POST", badan: { orangAId, orangBId } }),
+  hapusPasangan: (ruangId, id) =>
+    panggil(`/workspaces/${ruangId}/partners/${id}`, { metode: "DELETE" }),
+
   silsilah: (ruangId, orangId, arah, kedalaman = 5) =>
     panggil(`/workspaces/${ruangId}/tree/${orangId}?arah=${arah}&kedalaman=${kedalaman}`),
 };

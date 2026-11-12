@@ -95,6 +95,9 @@
               <button type="button" class="tombol tombol-samar" id="tombol-impor" title="Impor berkas GEDCOM">
                 Impor
               </button>
+              <button type="button" class="tombol tombol-samar" id="tombol-kronologi" title="Urutan peristiwa keluarga">
+                Kronologi
+              </button>
               <input type="file" id="berkas-gedcom" accept=".ged,.gedcom,text/plain" hidden />
               <button type="button" class="tombol tombol-utama" id="tombol-tambah">+ Tambah orang</button>
             </div>
@@ -130,6 +133,20 @@
             </label>
             <button type="button" class="tombol tombol-samar kecil" id="saring-bersih">Bersihkan</button>
           </div>
+
+          <section id="kronologi" class="kartu kronologi" hidden>
+            <div class="kronologi-kepala">
+              <div>
+                <h3>Kronologi keluarga</h3>
+                <p class="keterangan kecil">Peristiwa lahir dan wafat yang tercatat, urut menurut tahun.</p>
+              </div>
+              <button type="button" class="tombol tombol-samar kecil" id="tutup-kronologi" aria-label="Tutup kronologi">✕</button>
+            </div>
+            <p id="kronologi-kosong" class="keterangan kecil" hidden>
+              Belum ada tanggal lahir atau wafat yang bisa diurutkan.
+            </p>
+            <ol id="daftar-kronologi" class="kronologi-daftar"></ol>
+          </section>
 
           <div class="isi-panel">
             <div class="kolom-daftar">

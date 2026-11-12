@@ -1,4 +1,4 @@
-import type { Orang, Relasi } from "../data/tipe.js";
+import type { Orang, Pasangan, Relasi } from "../data/tipe.js";
 import { tahunDari } from "./tanggal.js";
 
 export interface StatistikSilsilah {
@@ -15,6 +15,8 @@ export interface StatistikSilsilah {
   jumlahAkar: number;
   /** Orang tanpa anak tercatat. */
   jumlahDaun: number;
+  /** Hubungan pasangan yang kedua ujungnya masih ada. */
+  jumlahPasangan: number;
 }
 
 /**
@@ -26,6 +28,7 @@ export interface StatistikSilsilah {
 export function hitungStatistik(
   semuaOrang: readonly Orang[],
   semuaRelasi: readonly Relasi[],
+  semuaPasangan: readonly Pasangan[] = [],
 ): StatistikSilsilah {
   const ada = new Set(semuaOrang.map((orang) => orang.id));
   const anakDari = new Map<string, string[]>();
@@ -82,9 +85,14 @@ export function hitungStatistik(
     if ((anakDari.get(orang.id) ?? []).length === 0) jumlahDaun += 1;
   }
 
+  const jumlahPasangan = semuaPasangan.filter(
+    (pasangan) => ada.has(pasangan.orangAId) && ada.has(pasangan.orangBId),
+  ).length;
+
   return {
     jumlahOrang: semuaOrang.length,
     jumlahRelasi,
+    jumlahPasangan,
     lakiLaki,
     perempuan,
     belumDiketahui,

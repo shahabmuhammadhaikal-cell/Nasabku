@@ -64,6 +64,7 @@ function faktaOrang(orang) {
     ["Jenis kelamin", labelKelamin[orang.jenisKelamin] ?? "Belum diketahui"],
     ["Lahir", [formatTanggal(orang.tanggalLahir), orang.tempatLahir].filter(Boolean).join(" · ") || "—"],
     ["Wafat", [formatTanggal(orang.tanggalWafat), orang.tempatWafat].filter(Boolean).join(" · ") || "—"],
+    ["Usia saat wafat", usiaTeks(orang)],
     ["Makam", orang.tempatPemakaman],
     ["Pekerjaan", orang.pekerjaan],
     ["Sumber", orang.sumber],
@@ -231,7 +232,53 @@ async function muatOrang() {
   const hasil = await api.orang(state.ruang.id, state.cari);
   state.orang = hasil.orang;
   gambarDaftarOrang();
+  if (!$("kronologi").hidden) gambarKronologi();
   await muatStatistik();
+}
+
+/* ------------------------------- Kronologi -------------------------------- */
+
+/** Peristiwa lahir dan wafat dari data yang sudah dimuat, diurutkan menurut tahun. */
+function peristiwaKronologi() {
+  const daftar = [];
+  for (const orang of state.orang) {
+    const tahunLahirOrang = tahunLahir(orang);
+    if (tahunLahirOrang) {
+      daftar.push({
+        tahun: tahunLahirOrang,
+        nama: orang.nama,
+        teks: orang.tempatLahir ? `lahir di ${orang.tempatLahir}` : "lahir",
+      });
+    }
+    const tahunWafat = Number(String(orang.tanggalWafat ?? "").slice(0, 4));
+    if (Number.isInteger(tahunWafat) && tahunWafat > 0) {
+      const usia = usiaTeks(orang);
+      daftar.push({
+        tahun: tahunWafat,
+        nama: orang.nama,
+        teks: [
+          orang.tempatWafat ? `wafat di ${orang.tempatWafat}` : "wafat",
+          usia ? `(${usia})` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      });
+    }
+  }
+  return daftar.sort(
+    (a, b) => a.tahun - b.tahun || a.nama.localeCompare(b.nama, "id", { sensitivity: "base" }),
+  );
+}
+
+function gambarKronologi() {
+  const daftar = peristiwaKronologi();
+  $("kronologi-kosong").hidden = daftar.length > 0;
+  $("daftar-kronologi").innerHTML = daftar
+    .map(
+      (peristiwa) =>
+        `<li><span class="kronologi-tahun">${esc(String(peristiwa.tahun))}</span><span class="kronologi-isi"><strong>${esc(peristiwa.nama)}</strong> ${esc(peristiwa.teks)}</span></li>`,
+    )
+    .join("");
 }
 
 /* ------------------------------- Statistik ------------------------------- */
@@ -268,6 +315,7 @@ function gambarStatistik(statistik) {
     chip(statistik.jumlahOrang, "orang"),
     chip(statistik.jumlahAngkatan, "angkatan"),
     chip(statistik.jumlahRelasi, "relasi"),
+    ...(statistik.jumlahPasangan ? [chip(statistik.jumlahPasangan, "pasangan")] : []),
     chip(`${statistik.lakiLaki}/${statistik.perempuan}`, "L/P"),
     chip(statistik.jumlahAkar, "akar"),
     ...(rentang ? [chip(rentang, "rentang lahir")] : []),
@@ -329,6 +377,7 @@ async function tanganiImporGedcom(peristiwa) {
       `${info.orang} orang dibaca`,
       info.digabung ? `${info.digabung} digabung dengan data yang sudah ada` : null,
       `${info.relasi} relasi baru`,
+      info.pasangan ? `${info.pasangan} pasangan baru` : null,
       info.relasiDilewati ? `${info.relasiDilewati} relasi dilewati` : null,
       info.tanggalDiabaikan ? `${info.tanggalDiabaikan} tanggal tidak dikenali` : null,
       info.namaDiabaikan ? `${info.namaDiabaikan} entri tanpa nama dilewati` : null,
@@ -357,6 +406,14 @@ const tahunLahir = (orang) => {
   const tahun = Number(String(orang.tanggalLahir ?? "").slice(0, 4));
   return Number.isInteger(tahun) && tahun > 0 ? tahun : null;
 };
+
+/** Usia hanya bisa dihitung dari tahun; karena itu ditandai perkiraan (±). */
+function usiaTeks(orang) {
+  const lahir = tahunLahir(orang);
+  const wafat = Number(String(orang.tanggalWafat ?? "").slice(0, 4));
+  if (!lahir || !Number.isInteger(wafat) || wafat < lahir) return null;
+  return `±${wafat - lahir} tahun`;
+}
 
 /** Daftar orang setelah disaring di peramban: jenis kelamin, status hidup, rentang tahun lahir. */
 function orangTersaring() {
@@ -484,8 +541,15 @@ async function bukaRinci(orangId) {
   panel.hidden = false;
   panel.innerHTML = `<p class="keterangan kecil">Memuat…</p>`;
 
-  const hasil = await api.relasi(state.ruang.id, orangId);
+  const [hasil, hasilPasangan] = await Promise.all([
+    api.relasi(state.ruang.id, orangId),
+    api.pasangan(state.ruang.id, orangId),
+  ]);
   const relasi = hasil.relasi;
+  const pasangan = hasilPasangan.pasangan.map((satu) => ({
+    pasanganId: satu.id,
+    orang: cari(satu.orangAId === orangId ? satu.orangBId : satu.orangAId),
+  }));
   const orangTua = relasi
     .filter((r) => r.anakId === orangId)
     .map((r) => ({ relasiId: r.id, orang: cari(r.orangTuaId) }));
@@ -511,6 +575,24 @@ async function bukaRinci(orangId) {
       <button type="button" class="tombol tombol-samar kecil" data-aksi="ubah">Ubah data</button>
       <button type="button" class="tombol tombol-bahaya kecil" data-aksi="hapus">Hapus orang</button>
     </div>
+
+    <section class="blok">
+      <h4>Pasangan</h4>
+      ${
+        pasangan.length
+          ? `<ul class="daftar-relasi">${pasangan
+              .map(
+                (r) => `<li><button type="button" class="tautan-orang" data-buka="${esc(r.orang?.id ?? "")}">${esc(r.orang?.nama ?? "?")}</button>
+                <button type="button" class="tombol-ikon" data-hapus-pasangan="${esc(r.pasanganId)}" aria-label="Lepas pasangan">✕</button></li>`,
+              )
+              .join("")}</ul>`
+          : `<p class="keterangan kecil">Belum dicatat.</p>`
+      }
+      <div class="relasi-baris">
+        <select data-pilih="pasangan">${opsi(calon)}</select>
+        <button type="button" class="tombol tombol-samar kecil" data-aksi="tambah-pasangan" ${calon.length ? "" : "disabled"}>Tambah</button>
+      </div>
+    </section>
 
     <section class="blok">
       <h4>Orang tua</h4>
@@ -594,10 +676,27 @@ async function bukaRinci(orangId) {
   panel.querySelector('[data-aksi="tambah-orangtua"]').addEventListener("click", () => tambahRelasi("orangTua"));
   panel.querySelector('[data-aksi="tambah-anak"]').addEventListener("click", () => tambahRelasi("anak"));
 
+  panel.querySelector('[data-aksi="tambah-pasangan"]').addEventListener("click", async () => {
+    const pilihan = panel.querySelector('[data-pilih="pasangan"]');
+    if (!pilihan?.value) return;
+    try {
+      await api.buatPasangan(state.ruang.id, orang.id, pilihan.value);
+      await bukaRinci(orang.id);
+    } catch (galat) {
+      pesan($("pesan-rinci"), galat.message);
+    }
+  });
+
   panel.addEventListener("click", async (peristiwa) => {
     const tombolHapus = peristiwa.target.closest("[data-hapus-relasi]");
     if (tombolHapus) {
       await api.hapusRelasi(state.ruang.id, tombolHapus.dataset.hapusRelasi);
+      await bukaRinci(orang.id);
+      return;
+    }
+    const tombolPasangan = peristiwa.target.closest("[data-hapus-pasangan]");
+    if (tombolPasangan) {
+      await api.hapusPasangan(state.ruang.id, tombolPasangan.dataset.hapusPasangan);
       await bukaRinci(orang.id);
       return;
     }
@@ -736,6 +835,14 @@ function pasangPeristiwa() {
   $("batal-orang").addEventListener("click", tutupFormOrang);
   $("tombol-tambah").addEventListener("click", () => bukaFormOrang(null));
   $("tombol-ekspor").addEventListener("click", tanganiEkspor);
+  $("tombol-kronologi").addEventListener("click", () => {
+    const wadah = $("kronologi");
+    wadah.hidden = !wadah.hidden;
+    if (!wadah.hidden) gambarKronologi();
+  });
+  $("tutup-kronologi").addEventListener("click", () => {
+    $("kronologi").hidden = true;
+  });
   $("tombol-gedcom").addEventListener("click", tanganiEksporGedcom);
   $("tombol-impor").addEventListener("click", () => $("berkas-gedcom").click());
   $("berkas-gedcom").addEventListener("change", tanganiImporGedcom);

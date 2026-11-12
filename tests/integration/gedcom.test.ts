@@ -61,6 +61,34 @@ describe("ekspor & impor GEDCOM", () => {
     expect(statistik.body.statistik).toMatchObject({ jumlahOrang: 3, jumlahRelasi: 2, jumlahAngkatan: 3 });
   });
 
+  it("mengekspor dan mengimpor hubungan pasangan", async () => {
+    const { app } = buatAplikasiUji();
+    const { agen } = await daftar(app);
+    const asal = await buatRuang(agen, "Pasangan GEDCOM");
+    const suami = await buatOrang(agen, asal, "Zulkifli", { tanggalLahir: "1950" });
+    const istri = await buatOrang(agen, asal, "Halimah", {
+      jenisKelamin: "P",
+      tanggalLahir: "1955",
+    });
+    await agen
+      .post(`/api/v1/workspaces/${asal}/partners`)
+      .send({ orangAId: suami, orangBId: istri });
+
+    const ekspor = await agen.get(`/api/v1/workspaces/${asal}/export?format=gedcom`);
+    expect(ekspor.text).toMatch(/1 HUSB @I\d+@/);
+    expect(ekspor.text).toMatch(/1 WIFE @I\d+@/);
+
+    const tujuan = await buatRuang(agen, "Pasangan Salinan");
+    const impor = await agen
+      .post(`/api/v1/workspaces/${tujuan}/import`)
+      .send({ gedcom: ekspor.text });
+    expect(impor.body.impor).toMatchObject({ orang: 2, pasangan: 1 });
+
+    const pasangan = await agen.get(`/api/v1/workspaces/${tujuan}/partners`);
+    expect(pasangan.body.jumlah).toBe(1);
+    expect((await agen.get(`/api/v1/workspaces/${tujuan}/stats`)).body.statistik.jumlahPasangan).toBe(1);
+  });
+
   it("menggabungkan impor berulang tanpa menduplikasi orang", async () => {
     const { app } = buatAplikasiUji();
     const { agen } = await daftar(app);
