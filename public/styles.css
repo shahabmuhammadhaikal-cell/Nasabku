@@ -1002,3 +1002,60 @@ textarea:focus-visible,
     padding-inline: 0.6rem;
   }
 }
+
+/* Pasangan & pernikahan */
+.baris-pasangan {
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pasangan-utama {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.pasangan-meta {
+  color: var(--samar);
+  font-size: 0.74rem;
+}
+
+.pasangan-aksi {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.form-pasangan {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem 0.6rem;
+  align-items: end;
+  margin-top: 0.6rem;
+}
+
+.isian-pasangan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--samar);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.isian-pasangan select,
+.isian-pasangan input {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.86rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.lebar-penuh {
+  grid-column: 1 / -1;
+}
+
+.pasangan-tombol {
+  margin-top: 0;
+  align-self: end;
+}

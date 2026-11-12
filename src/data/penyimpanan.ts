@@ -10,6 +10,7 @@ import {
 import type { BasisDokumen } from "./port.js";
 import type {
   DataOrang,
+  DataPasangan,
   Orang,
   Pasangan,
   PenggunaPublik,
@@ -55,8 +56,14 @@ export interface Penyimpanan {
 
   daftarRelasi(ruangKerjaId: string, orangId?: string): Promise<Relasi[]>;
   daftarPasangan(ruangKerjaId: string, orangId?: string): Promise<Pasangan[]>;
-  /** null berarti hubungan pasangan itu sudah tercatat. */
-  buatPasangan(ruangKerjaId: string, orangAId: string, orangBId: string): Promise<Pasangan | null>;
+  /** null berarti hubungan pasangan itu sudah tercatat. Urutan diisi otomatis bila tidak diberikan. */
+  buatPasangan(
+    ruangKerjaId: string,
+    orangAId: string,
+    orangBId: string,
+    data?: Partial<DataPasangan>,
+  ): Promise<Pasangan | null>;
+  ubahPasangan(ruangKerjaId: string, id: string, data: DataPasangan): Promise<Pasangan | null>;
   hapusPasangan(ruangKerjaId: string, id: string): Promise<boolean>;
   /** null berarti relasi orang tua–anak itu sudah tercatat. */
   buatRelasi(ruangKerjaId: string, orangTuaId: string, anakId: string): Promise<Relasi | null>;
@@ -295,7 +302,7 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
       );
     },
 
-    async buatPasangan(ruangKerjaId, orangAId, orangBId) {
+    async buatPasangan(ruangKerjaId, orangAId, orangBId, data = {}) {
       // Id deterministik dari pasangan id yang diurutkan: satu pasangan hanya bisa
       // tercatat sekali, dan urutan siapa mendaftar tidak berpengaruh.
       const urut = [orangAId, orangBId].sort();
@@ -303,13 +310,42 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
       const kanan = urut[1] ?? orangBId;
       const id = `${kiri}_${kanan}`;
       const dibuatPada = new Date().toISOString();
-      const terbuat = await pasanganDi(ruangKerjaId).buat(id, {
+
+      let urutan = data.urutan;
+      if (urutan === undefined) {
+        // Pernikahan berikutnya dari salah satu pihak menjadi urutan terakhir + 1.
+        const ada = (await pasanganDi(ruangKerjaId).daftar(BATAS_DOKUMEN)).map(kePasangan);
+        const terpakai = ada
+          .filter(
+            (satu) =>
+              satu.orangAId === kiri ||
+              satu.orangBId === kiri ||
+              satu.orangAId === kanan ||
+              satu.orangBId === kanan,
+          )
+          .map((satu) => satu.urutan);
+        urutan = (terpakai.length ? Math.max(...terpakai) : 0) + 1;
+      }
+
+      const pasangan: Pasangan = {
+        id,
         ruangKerjaId,
         orangAId: kiri,
         orangBId: kanan,
+        tanggalMenikah: data.tanggalMenikah ?? null,
+        urutan,
         dibuatPada,
-      });
-      return terbuat ? { id, ruangKerjaId, orangAId: kiri, orangBId: kanan, dibuatPada } : null;
+      };
+      const terbuat = await pasanganDi(ruangKerjaId).buat(id, { ...pasangan });
+      return terbuat ? pasangan : null;
+    },
+
+    async ubahPasangan(ruangKerjaId, id, data) {
+      const dokumen = await pasanganDi(ruangKerjaId).ambil(id);
+      if (!dokumen) return null;
+      const pasangan: Pasangan = { ...kePasangan(dokumen), ...data };
+      await pasanganDi(ruangKerjaId).simpan(id, { ...pasangan });
+      return pasangan;
     },
 
     async hapusPasangan(ruangKerjaId, id) {

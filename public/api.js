@@ -123,8 +123,10 @@ export const api = {
 
   pasangan: (ruangId, orangId) =>
     panggil(`/workspaces/${ruangId}/partners${orangId ? `?orangId=${encodeURIComponent(orangId)}` : ""}`),
-  buatPasangan: (ruangId, orangAId, orangBId) =>
-    panggil(`/workspaces/${ruangId}/partners`, { metode: "POST", badan: { orangAId, orangBId } }),
+  buatPasangan: (ruangId, orangAId, orangBId, data = {}) =>
+    panggil(`/workspaces/${ruangId}/partners`, { metode: "POST", badan: { orangAId, orangBId, ...data } }),
+  ubahPasangan: (ruangId, id, data) =>
+    panggil(`/workspaces/${ruangId}/partners/${id}`, { metode: "PATCH", badan: data }),
   hapusPasangan: (ruangId, id) =>
     panggil(`/workspaces/${ruangId}/partners/${id}`, { metode: "DELETE" }),
 

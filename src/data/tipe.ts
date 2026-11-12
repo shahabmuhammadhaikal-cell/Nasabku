@@ -72,7 +72,16 @@ export interface Pasangan {
   ruangKerjaId: string;
   orangAId: string;
   orangBId: string;
+  /** Tanggal pernikahan bertingkat: "1965", "1965-06", atau "1965-06-12". */
+  tanggalMenikah: string | null;
+  /** Pernikahan ke-berapa bagi pasangan ini (1 = pertama). */
+  urutan: number;
   dibuatPada: string;
+}
+
+export interface DataPasangan {
+  tanggalMenikah: string | null;
+  urutan: number;
 }
 
 export function teks(nilai: unknown): string {
@@ -135,11 +144,15 @@ export function keOrang(dokumen: Dokumen): Orang {
 
 export function kePasangan(dokumen: Dokumen): Pasangan {
   const { data } = dokumen;
+  const urutan = data.urutan;
   return {
     id: dokumen.id,
     ruangKerjaId: teks(data.ruangKerjaId),
     orangAId: teks(data.orangAId),
     orangBId: teks(data.orangBId),
+    // Dokumen lama belum menyimpan data pernikahan; dibaca sebagai pernikahan pertama.
+    tanggalMenikah: teksAtauNull(data.tanggalMenikah),
+    urutan: typeof urutan === "number" && Number.isInteger(urutan) && urutan > 0 ? urutan : 1,
     dibuatPada: teks(data.dibuatPada),
   };
 }

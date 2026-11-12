@@ -70,13 +70,17 @@ describe("ekspor & impor GEDCOM", () => {
       jenisKelamin: "P",
       tanggalLahir: "1955",
     });
-    await agen
-      .post(`/api/v1/workspaces/${asal}/partners`)
-      .send({ orangAId: suami, orangBId: istri });
+    await agen.post(`/api/v1/workspaces/${asal}/partners`).send({
+      orangAId: suami,
+      orangBId: istri,
+      tanggalMenikah: "1975-06-12",
+      urutan: 1,
+    });
 
     const ekspor = await agen.get(`/api/v1/workspaces/${asal}/export?format=gedcom`);
     expect(ekspor.text).toMatch(/1 HUSB @I\d+@/);
     expect(ekspor.text).toMatch(/1 WIFE @I\d+@/);
+    expect(ekspor.text).toContain("1 MARR\n2 DATE 12 JUN 1975");
 
     const tujuan = await buatRuang(agen, "Pasangan Salinan");
     const impor = await agen
@@ -86,6 +90,7 @@ describe("ekspor & impor GEDCOM", () => {
 
     const pasangan = await agen.get(`/api/v1/workspaces/${tujuan}/partners`);
     expect(pasangan.body.jumlah).toBe(1);
+    expect(pasangan.body.pasangan[0]).toMatchObject({ tanggalMenikah: "1975-06-12", urutan: 1 });
     expect((await agen.get(`/api/v1/workspaces/${tujuan}/stats`)).body.statistik.jumlahPasangan).toBe(1);
   });
 

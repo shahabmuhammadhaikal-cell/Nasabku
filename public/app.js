@@ -7,6 +7,8 @@ const state = {
   ruangKerja: [],
   ruang: null,
   orang: [],
+  pasangan: [],
+  ubahPasangan: null,
   terpilihId: null,
   arah: "turun",
   cari: "",
@@ -195,6 +197,8 @@ async function pilihRuang(ruang) {
   state.terpilihId = null;
   state.cari = "";
   $("cari").value = "";
+  state.pasangan = [];
+  state.ubahPasangan = null;
   state.saring = { jk: "", status: "", dari: "", sampai: "" };
   $("saring-jk").value = "";
   $("saring-status").value = "";
@@ -229,8 +233,12 @@ async function buatRuang(peristiwa) {
 
 async function muatOrang() {
   if (!state.ruang) return;
-  const hasil = await api.orang(state.ruang.id, state.cari);
+  const [hasil, hasilPasangan] = await Promise.all([
+    api.orang(state.ruang.id, state.cari),
+    api.pasangan(state.ruang.id),
+  ]);
   state.orang = hasil.orang;
+  state.pasangan = hasilPasangan.pasangan;
   gambarDaftarOrang();
   if (!$("kronologi").hidden) gambarKronologi();
   await muatStatistik();
@@ -265,6 +273,17 @@ function peristiwaKronologi() {
       });
     }
   }
+  const namaOrang = (id) => state.orang.find((satu) => satu.id === id)?.nama ?? "?";
+  for (const satu of state.pasangan) {
+    const tahunMenikah = Number(String(satu.tanggalMenikah ?? "").slice(0, 4));
+    if (!Number.isInteger(tahunMenikah) || tahunMenikah <= 0) continue;
+    daftar.push({
+      tahun: tahunMenikah,
+      nama: `${namaOrang(satu.orangAId)} & ${namaOrang(satu.orangBId)}`,
+      teks: `menikah (pernikahan ke-${satu.urutan})`,
+    });
+  }
+
   return daftar.sort(
     (a, b) => a.tahun - b.tahun || a.nama.localeCompare(b.nama, "id", { sensitivity: "base" }),
   );
@@ -407,6 +426,13 @@ const tahunLahir = (orang) => {
   return Number.isInteger(tahun) && tahun > 0 ? tahun : null;
 };
 
+/** "Pernikahan ke-2 · 12 Juni 1985" — urutan dan tanggal pernikahan. */
+function metaPasangan(pasangan) {
+  const bagian = [`Pernikahan ke-${pasangan.urutan}`];
+  if (pasangan.tanggalMenikah) bagian.push(formatTanggal(pasangan.tanggalMenikah));
+  return bagian.join(" · ");
+}
+
 /** Usia hanya bisa dihitung dari tahun; karena itu ditandai perkiraan (±). */
 function usiaTeks(orang) {
   const lahir = tahunLahir(orang);
@@ -541,15 +567,18 @@ async function bukaRinci(orangId) {
   panel.hidden = false;
   panel.innerHTML = `<p class="keterangan kecil">Memuat…</p>`;
 
-  const [hasil, hasilPasangan] = await Promise.all([
-    api.relasi(state.ruang.id, orangId),
-    api.pasangan(state.ruang.id, orangId),
-  ]);
-  const relasi = hasil.relasi;
-  const pasangan = hasilPasangan.pasangan.map((satu) => ({
-    pasanganId: satu.id,
-    orang: cari(satu.orangAId === orangId ? satu.orangBId : satu.orangAId),
-  }));
+  if (state.terpilihId !== orangId) state.ubahPasangan = null;
+  const relasi = (await api.relasi(state.ruang.id, orangId)).relasi;
+  const pasangan = state.pasangan
+    .filter((satu) => satu.orangAId === orangId || satu.orangBId === orangId)
+    .map((satu) => ({
+      pasanganId: satu.id,
+      urutan: satu.urutan,
+      tanggalMenikah: satu.tanggalMenikah,
+      orang: cari(satu.orangAId === orangId ? satu.orangBId : satu.orangAId),
+    }))
+    .sort((a, b) => a.urutan - b.urutan);
+  const sedangUbah = pasangan.find((satu) => satu.pasanganId === state.ubahPasangan) ?? null;
   const orangTua = relasi
     .filter((r) => r.anakId === orangId)
     .map((r) => ({ relasiId: r.id, orang: cari(r.orangTuaId) }));
@@ -577,20 +606,42 @@ async function bukaRinci(orangId) {
     </div>
 
     <section class="blok">
-      <h4>Pasangan</h4>
+      <h4>Pasangan &amp; pernikahan</h4>
       ${
         pasangan.length
           ? `<ul class="daftar-relasi">${pasangan
               .map(
-                (r) => `<li><button type="button" class="tautan-orang" data-buka="${esc(r.orang?.id ?? "")}">${esc(r.orang?.nama ?? "?")}</button>
-                <button type="button" class="tombol-ikon" data-hapus-pasangan="${esc(r.pasanganId)}" aria-label="Lepas pasangan">✕</button></li>`,
+                (r) => `<li class="baris-pasangan">
+                <span class="pasangan-utama">
+                  <button type="button" class="tautan-orang" data-buka="${esc(r.orang?.id ?? "")}">${esc(r.orang?.nama ?? "?")}</button>
+                  <small class="pasangan-meta">${esc(metaPasangan(r))}</small>
+                </span>
+                <span class="pasangan-aksi">
+                  <button type="button" class="tombol-ikon" data-ubah-pasangan="${esc(r.pasanganId)}" aria-label="Ubah data pernikahan">✎</button>
+                  <button type="button" class="tombol-ikon" data-hapus-pasangan="${esc(r.pasanganId)}" aria-label="Lepas pasangan">✕</button>
+                </span></li>`,
               )
               .join("")}</ul>`
           : `<p class="keterangan kecil">Belum dicatat.</p>`
       }
-      <div class="relasi-baris">
-        <select data-pilih="pasangan">${opsi(calon)}</select>
-        <button type="button" class="tombol tombol-samar kecil" data-aksi="tambah-pasangan" ${calon.length ? "" : "disabled"}>Tambah</button>
+      <div class="form-pasangan">
+        ${
+          sedangUbah
+            ? `<p class="keterangan kecil lebar-penuh">Ubah pernikahan dengan <strong>${esc(sedangUbah.orang?.nama ?? "?")}</strong></p>`
+            : `<label class="isian-pasangan lebar-penuh">Pasangan
+                <select data-isian="pasangan" ${calon.length ? "" : "disabled"}>${opsi(calon)}</select>
+              </label>`
+        }
+        <label class="isian-pasangan">Urutan pernikahan
+          <input type="number" data-isian="urutan" min="1" max="30" placeholder="1" value="${sedangUbah ? sedangUbah.urutan : ""}" />
+        </label>
+        <label class="isian-pasangan">Tanggal menikah
+          <input type="text" data-isian="tanggalMenikah" inputmode="numeric" maxlength="10" placeholder="1965-06-12" value="${esc(sedangUbah?.tanggalMenikah ?? "")}" />
+        </label>
+        <div class="tombol-baris pasangan-tombol">
+          <button type="button" class="tombol tombol-samar kecil" data-aksi="simpan-pasangan" ${!sedangUbah && !calon.length ? "disabled" : ""}>${sedangUbah ? "Simpan" : "Tambah"}</button>
+          ${sedangUbah ? `<button type="button" class="tombol tombol-samar kecil" data-aksi="batal-pasangan">Batal</button>` : ""}
+        </div>
       </div>
     </section>
 
@@ -676,21 +727,45 @@ async function bukaRinci(orangId) {
   panel.querySelector('[data-aksi="tambah-orangtua"]').addEventListener("click", () => tambahRelasi("orangTua"));
   panel.querySelector('[data-aksi="tambah-anak"]').addEventListener("click", () => tambahRelasi("anak"));
 
-  panel.querySelector('[data-aksi="tambah-pasangan"]').addEventListener("click", async () => {
-    const pilihan = panel.querySelector('[data-pilih="pasangan"]');
-    if (!pilihan?.value) return;
+  panel.querySelector('[data-aksi="simpan-pasangan"]').addEventListener("click", async () => {
+    const form = panel.querySelector(".form-pasangan");
+    const urutanMentah = String(form.querySelector('[data-isian="urutan"]').value ?? "").trim();
+    const tanggalMentah = String(form.querySelector('[data-isian="tanggalMenikah"]').value ?? "").trim();
+    const data = {
+      ...(urutanMentah ? { urutan: Number(urutanMentah) } : {}),
+      tanggalMenikah: tanggalMentah === "" ? null : tanggalMentah,
+    };
     try {
-      await api.buatPasangan(state.ruang.id, orang.id, pilihan.value);
+      if (state.ubahPasangan) {
+        await api.ubahPasangan(state.ruang.id, state.ubahPasangan, data);
+      } else {
+        const pilihan = form.querySelector('[data-isian="pasangan"]');
+        if (!pilihan?.value) return;
+        await api.buatPasangan(state.ruang.id, orang.id, pilihan.value, data);
+      }
+      state.ubahPasangan = null;
+      await muatOrang();
       await bukaRinci(orang.id);
     } catch (galat) {
       pesan($("pesan-rinci"), galat.message);
     }
   });
 
+  panel.querySelector('[data-aksi="batal-pasangan"]')?.addEventListener("click", async () => {
+    state.ubahPasangan = null;
+    await bukaRinci(orang.id);
+  });
+
   panel.addEventListener("click", async (peristiwa) => {
     const tombolHapus = peristiwa.target.closest("[data-hapus-relasi]");
     if (tombolHapus) {
       await api.hapusRelasi(state.ruang.id, tombolHapus.dataset.hapusRelasi);
+      await bukaRinci(orang.id);
+      return;
+    }
+    const tombolUbahPasangan = peristiwa.target.closest("[data-ubah-pasangan]");
+    if (tombolUbahPasangan) {
+      state.ubahPasangan = tombolUbahPasangan.dataset.ubahPasangan;
       await bukaRinci(orang.id);
       return;
     }

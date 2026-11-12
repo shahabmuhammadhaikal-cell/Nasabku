@@ -187,10 +187,12 @@ export function buatGedcom(
   }
 
   // Pasangan yang belum dianugerahi anak tetap dicatat sebagai keluarga tersendiri.
+  const pasanganPerPasangan = new Map<string, Pasangan>();
   for (const satu of semuaPasangan) {
     if (!ada.has(satu.orangAId) || !ada.has(satu.orangBId)) continue;
     const urut = [satu.orangAId, satu.orangBId].sort();
     const kunci = urut.join("|");
+    pasanganPerPasangan.set(kunci, satu);
     if (!keluarga.has(kunci)) keluarga.set(kunci, { orangTua: urut, anak: [] });
   }
 
@@ -228,8 +230,20 @@ export function buatGedcom(
     if (keterangan) tulisTeks(keluar, 1, "NOTE", keterangan);
   }
 
+  // Keluarga diurutkan menurut urutan pernikahan agar "istri/suami ke-1, ke-2" tetap terbaca.
+  const daftarKeluarga = [...keluarga.entries()]
+    .map(([kunci, isi]) => ({
+      ...isi,
+      kunci,
+      pasangan: pasanganPerPasangan.get([...isi.orangTua].sort().join("|")) ?? null,
+    }))
+    .sort(
+      (a, b) =>
+        (a.pasangan?.urutan ?? 99) - (b.pasangan?.urutan ?? 99) || a.kunci.localeCompare(b.kunci),
+    );
+
   let nomor = 0;
-  for (const satu of keluarga.values()) {
+  for (const satu of daftarKeluarga) {
     nomor += 1;
     keluar.push(`0 @F${nomor}@ FAM`);
     const jenis = (id: string): string => peta.get(id)?.jenisKelamin ?? "U";
@@ -240,6 +254,11 @@ export function buatGedcom(
     const [pertama, kedua] = urut;
     if (pertama) keluar.push(`1 HUSB ${label.get(pertama) ?? ""}`);
     if (kedua) keluar.push(`1 WIFE ${label.get(kedua) ?? ""}`);
+    const tanggalMenikah = tanggalKeGedcom(satu.pasangan?.tanggalMenikah ?? null);
+    if (tanggalMenikah) {
+      keluar.push("1 MARR");
+      keluar.push(`2 DATE ${tanggalMenikah}`);
+    }
     for (const anak of satu.anak) {
       keluar.push(`1 CHIL ${label.get(anak) ?? ""}`);
     }
@@ -312,7 +331,7 @@ function potong(nilai: string, maks: number): string | null {
 
 export interface HasilImporGedcom {
   individu: { kunci: string; data: DataOrang }[];
-  keluarga: { orangTua: string[]; anak: string[] }[];
+  keluarga: { orangTua: string[]; anak: string[]; tanggalMenikah: string | null }[];
   tanggalDiabaikan: number;
   namaKosong: number;
 }
@@ -401,14 +420,19 @@ export function bacaGedcom(teks: string): HasilImporGedcom {
 
   const keluarga = akar
     .filter((simpul) => simpul.tag === "FAM")
-    .map((simpul) => ({
-      orangTua: [...anakBertag(simpul, "HUSB"), ...anakBertag(simpul, "WIFE")]
-        .map((satu) => satu.nilai.trim())
-        .filter(Boolean),
-      anak: anakBertag(simpul, "CHIL")
-        .map((satu) => satu.nilai.trim())
-        .filter(Boolean),
-    }))
+    .map((simpul) => {
+      const pernikahan = anakBertag(simpul, "MARR")[0];
+      const tanggalMentah = pernikahan ? nilaiTag(pernikahan, "DATE") : "";
+      return {
+        orangTua: [...anakBertag(simpul, "HUSB"), ...anakBertag(simpul, "WIFE")]
+          .map((satu) => satu.nilai.trim())
+          .filter(Boolean),
+        anak: anakBertag(simpul, "CHIL")
+          .map((satu) => satu.nilai.trim())
+          .filter(Boolean),
+        tanggalMenikah: tanggalMentah ? gedcomKeTanggal(tanggalMentah) : null,
+      };
+    })
     // Keluarga tanpa anak tetap dibaca agar pasangan tanpa keturunan tidak hilang.
     .filter((satu) => satu.orangTua.length > 0);
 
