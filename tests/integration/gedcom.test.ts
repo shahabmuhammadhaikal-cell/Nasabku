@@ -40,6 +40,7 @@ describe("ekspor & impor GEDCOM", () => {
     expect(impor.status).toBe(201);
     expect(impor.body.impor).toMatchObject({
       orang: 3,
+      digabung: 0,
       relasi: 2,
       relasiDilewati: 0,
       tanggalDiabaikan: 0,
@@ -58,6 +59,64 @@ describe("ekspor & impor GEDCOM", () => {
 
     const statistik = await agen.get(`/api/v1/workspaces/${tujuan}/stats`);
     expect(statistik.body.statistik).toMatchObject({ jumlahOrang: 3, jumlahRelasi: 2, jumlahAngkatan: 3 });
+  });
+
+  it("menggabungkan impor berulang tanpa menduplikasi orang", async () => {
+    const { app } = buatAplikasiUji();
+    const { agen } = await daftar(app);
+    const asal = await buatRuang(agen, "Keluarga Asal");
+    const budi = await buatOrang(agen, asal, "Budi Santoso", { tanggalLahir: "1954-06-12" });
+    const ani = await buatOrang(agen, asal, "Ani Santoso", { jenisKelamin: "P", tanggalLahir: "1980" });
+    await agen.post(`/api/v1/workspaces/${asal}/relations`).send({ orangTuaId: budi, anakId: ani });
+    const ekspor = await agen.get(`/api/v1/workspaces/${asal}/export?format=gedcom`);
+
+    const tujuan = await buatRuang(agen, "Keluarga Tujuan");
+    const pertama = await agen
+      .post(`/api/v1/workspaces/${tujuan}/import`)
+      .send({ gedcom: ekspor.text });
+    expect(pertama.body.impor).toMatchObject({ orang: 2, digabung: 0, relasi: 1 });
+
+    const kedua = await agen
+      .post(`/api/v1/workspaces/${tujuan}/import`)
+      .send({ gedcom: ekspor.text });
+    expect(kedua.body.impor).toMatchObject({ orang: 2, digabung: 2, relasi: 0, relasiDilewati: 1 });
+
+    const daftarOrang = await agen.get(`/api/v1/workspaces/${tujuan}/persons`);
+    expect(daftarOrang.body.jumlah).toBe(2);
+    const statistik = await agen.get(`/api/v1/workspaces/${tujuan}/stats`);
+    expect(statistik.body.statistik.jumlahRelasi).toBe(1);
+  });
+
+  it("mengisi kolom kosong dari impor tanpa menimpa isian lama", async () => {
+    const { app } = buatAplikasiUji();
+    const { agen } = await daftar(app);
+    const asal = await buatRuang(agen, "Sumber Lengkap");
+    await buatOrang(agen, asal, "Budi Santoso", {
+      tanggalLahir: "1954-06-12",
+      tempatLahir: "Medan",
+      pekerjaan: "Petani",
+    });
+    const ekspor = await agen.get(`/api/v1/workspaces/${asal}/export?format=gedcom`);
+
+    const tujuan = await buatRuang(agen, "Data Sebagian");
+    const lamaId = await buatOrang(agen, tujuan, "budi santoso", {
+      tanggalLahir: "1954",
+      sumber: "Tafsiran keluarga",
+    });
+
+    const impor = await agen
+      .post(`/api/v1/workspaces/${tujuan}/import`)
+      .send({ gedcom: ekspor.text });
+    expect(impor.body.impor.digabung).toBe(1);
+
+    const setelah = await agen.get(`/api/v1/workspaces/${tujuan}/persons/${lamaId}`);
+    expect(setelah.body.orang).toMatchObject({
+      pekerjaan: "Petani",
+      tempatLahir: "Medan",
+      sumber: "Tafsiran keluarga",
+      tanggalLahir: "1954-06-12",
+    });
+    expect((await agen.get(`/api/v1/workspaces/${tujuan}/persons`)).body.jumlah).toBe(1);
   });
 
   it("menolak isi yang bukan GEDCOM dan format ekspor yang tidak dikenal", async () => {

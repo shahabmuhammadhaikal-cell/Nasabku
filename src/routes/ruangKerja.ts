@@ -3,6 +3,7 @@ import { BATAS_DOKUMEN, type Penyimpanan } from "../data/penyimpanan.js";
 import type { Relasi } from "../data/tipe.js";
 import { BATAS_IMPOR_ORANG, bacaGedcom, buatGedcom } from "../lib/gedcom.js";
 import { galat } from "../lib/kesalahan.js";
+import { adaPerubahan, gabungkanData, samaOrang } from "../lib/pencocokan.js";
 import { akanMembentukSiklus } from "../lib/silsilah.js";
 import { hitungStatistik } from "../lib/statistik.js";
 import { badanObjek, teksWajib } from "../lib/validasi.js";
@@ -119,9 +120,28 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
     }
 
     const idPerLabel = new Map<string, string>();
+    const dikenal = await penyimpanan.daftarOrang(ruangKerja.id, { batas: BATAS_DOKUMEN });
+    let digabung = 0;
+
     for (const satu of hasil.individu) {
+      const kembar = dikenal.find((orang) => samaOrang(satu.data, orang));
+      if (kembar) {
+        // Orang yang sudah tercatat tidak diduplikasi: kolom yang kosong diisi,
+        // keterangan yang sudah ada dibiarkan.
+        const gabungan = gabungkanData(kembar, satu.data);
+        if (adaPerubahan(kembar, gabungan)) {
+          const diperbarui = await penyimpanan.ubahOrang(ruangKerja.id, kembar.id, gabungan);
+          const posisi = dikenal.indexOf(kembar);
+          if (diperbarui && posisi >= 0) dikenal[posisi] = diperbarui;
+        }
+        idPerLabel.set(satu.kunci, kembar.id);
+        digabung += 1;
+        continue;
+      }
+
       const orang = await penyimpanan.buatOrang(ruangKerja.id, satu.data);
       idPerLabel.set(satu.kunci, orang.id);
+      dikenal.push(orang);
     }
 
     const relasiLama = await penyimpanan.daftarRelasi(ruangKerja.id);
@@ -155,6 +175,7 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
     res.status(201).json({
       impor: {
         orang: hasil.individu.length,
+        digabung,
         relasi: terbentuk.length,
         relasiDilewati,
         tanggalDiabaikan: hasil.tanggalDiabaikan,

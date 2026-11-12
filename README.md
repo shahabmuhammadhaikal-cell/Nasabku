@@ -125,7 +125,13 @@ catatan, sumber), keluarga (HUSB/WIFE/CHIL), serta tanggal bertingkat yang dipet
 
 Impor menerima berkas GEDCOM dengan aturan yang sama: maksimal 2000 orang per impor, tanggal yang tidak
 sah **diabaikan** (tidak dikarang), relasi yang membentuk lingkaran dilewati, dan hasilnya dilaporkan di
-`{ impor: { orang, relasi, relasiDilewati, tanggalDiabaikan, namaDiabaikan } }`.
+`{ impor: { orang, digabung, relasi, relasiDilewati, tanggalDiabaikan, namaDiabaikan } }`.
+
+Impor **tidak menduplikasi**: orang yang namanya sama (tanpa peduli huruf besar/kecil, aksen, dan tanda
+baca), jenis kelaminnya tidak bertentangan, dan tahun lahirnya sama dianggap orang yang sudah tercatat.
+Data yang ada dipertahankan; hanya kolom yang masih kosong yang diisi dari berkas — dan tanggal yang lebih
+teliti (`1954-06-12` mengalahkan `1954`) dipakai bila tahunnya sama. Jumlah yang digabung dilaporkan di
+`impor.digabung`, sehingga mengimpor berkas yang sama dua kali tidak menggandakan silsilah.
 
 ### Aturan yang dijaga server
 

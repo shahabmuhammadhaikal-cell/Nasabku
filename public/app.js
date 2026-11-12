@@ -316,7 +316,7 @@ async function tanganiImporGedcom(peristiwa) {
   if (!berkas || !state.ruang) return;
   if (
     !confirm(
-      `Impor “${berkas.name}” ke ruang kerja “${state.ruang.nama}”? Data yang ada akan ditambah, tidak ditimpa.`,
+      `Impor “${berkas.name}” ke ruang kerja “${state.ruang.nama}”? Orang yang sudah tercatat akan digabung, bukan diduplikasi.`,
     )
   ) {
     return;
@@ -326,8 +326,9 @@ async function tanganiImporGedcom(peristiwa) {
     const hasil = await api.imporGedcom(state.ruang.id, await berkas.text());
     const info = hasil.impor;
     const catatan = [
-      `${info.orang} orang`,
-      `${info.relasi} relasi`,
+      `${info.orang} orang dibaca`,
+      info.digabung ? `${info.digabung} digabung dengan data yang sudah ada` : null,
+      `${info.relasi} relasi baru`,
       info.relasiDilewati ? `${info.relasiDilewati} relasi dilewati` : null,
       info.tanggalDiabaikan ? `${info.tanggalDiabaikan} tanggal tidak dikenali` : null,
       info.namaDiabaikan ? `${info.namaDiabaikan} entri tanpa nama dilewati` : null,
