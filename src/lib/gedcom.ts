@@ -198,7 +198,7 @@ export function buatGedcom(
   keluar.push(`1 DATE ${sekarang.getUTCDate()} ${BULAN_GEDCOM[sekarang.getUTCMonth()]} ${sekarang.getUTCFullYear()}`);
   keluar.push("1 SUBM @U1@");
   keluar.push("0 @U1@ SUBM");
-  keluar.push(`1 NAME ${namaGedcom(`Keluarga ${ruangKerja.nama}`) || "Nasabku"}`);
+  keluar.push(`1 NAME ${namaGedcom(ruangKerja.nama) || "Nasabku"}`);
 
   for (const orang of semuaOrang) {
     keluar.push(`0 ${label.get(orang.id) ?? "@I0@"} INDI`);
