@@ -1059,3 +1059,27 @@ textarea:focus-visible,
   margin-top: 0;
   align-self: end;
 }
+
+/* Pohon: pasangan berdampingan dan garis pernikahan */
+.pohon-garis {
+  fill: none;
+  stroke: #c9d8d0;
+  stroke-width: 1.5;
+}
+
+.pohon-nikah {
+  stroke: #8fb3a5;
+  stroke-width: 2;
+}
+
+.pohon-lencana rect {
+  fill: #eef5f0;
+  stroke: #8fb3a5;
+  stroke-width: 1;
+}
+
+.pohon-lencana text {
+  fill: #2f6b52;
+  font-size: 10px;
+  font-weight: 700;
+}
