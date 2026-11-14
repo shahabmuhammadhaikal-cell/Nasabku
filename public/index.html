@@ -10,7 +10,20 @@
   </head>
   <body>
     <header class="puncak">
-      <div class="merek"><span class="lambang" aria-hidden="true">🌳</span> Nasabku</div>
+      <div class="merek">
+        <span class="lambang" aria-hidden="true">🌳</span> Nasabku
+        <button
+          type="button"
+          class="tombol tombol-samar tombol-ciut"
+          id="tombol-sidebar"
+          aria-expanded="true"
+          aria-controls="panel-samping"
+          title="Sembunyikan ruang kerja"
+        >
+          <span aria-hidden="true">⇤</span>
+          <span class="label-ciut">Ruang kerja</span>
+        </button>
+      </div>
       <div class="sisi-pengguna" id="sisi-pengguna" hidden>
         <span id="nama-pengguna" class="nama-pengguna"></span>
         <button type="button" class="tombol tombol-samar" id="tombol-keluar">Keluar</button>
@@ -64,7 +77,7 @@
       </section>
 
       <section id="tampilan-aplikasi" class="tata-letak" hidden>
-        <aside class="panel-samping">
+        <aside class="panel-samping" id="panel-samping">
           <h2>Ruang kerja</h2>
           <ul id="daftar-ruang" class="daftar-ruang"></ul>
           <form id="form-ruang" class="form-ruang">

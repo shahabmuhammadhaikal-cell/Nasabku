@@ -16,6 +16,7 @@ const state = {
   modeForm: "tambah",
   tampilan: "ringkasan",
   statistik: null,
+  sidebarCiut: false,
 };
 
 const esc = (nilai) =>
@@ -105,6 +106,28 @@ async function bukaAplikasi() {
   $("sisi-pengguna").hidden = false;
   $("nama-pengguna").textContent = state.pengguna?.nama ?? "";
   await muatRuangKerja();
+}
+
+const KUNCI_SIDEBAR = "nasabku.sidebar-ciut";
+
+/** Menyembunyikan/menampilkan sidebar ruang kerja (hanya berlaku di layar lebar). */
+function terapkanSidebar(ciut) {
+  state.sidebarCiut = Boolean(ciut);
+  document.querySelector(".tata-letak")?.classList.toggle("ciut", state.sidebarCiut);
+
+  const tombol = $("tombol-sidebar");
+  if (tombol) {
+    tombol.setAttribute("aria-expanded", state.sidebarCiut ? "false" : "true");
+    tombol.title = state.sidebarCiut ? "Tampilkan ruang kerja" : "Sembunyikan ruang kerja";
+    const label = tombol.querySelector(".label-ciut");
+    if (label) label.textContent = state.sidebarCiut ? "Tampilkan ruang kerja" : "Ruang kerja";
+  }
+
+  try {
+    localStorage.setItem(KUNCI_SIDEBAR, state.sidebarCiut ? "1" : "0");
+  } catch {
+    // Mode privat / penyimpanan ditolak: cukup diingat selama sesi ini.
+  }
 }
 
 function pasangTab() {
@@ -1351,6 +1374,15 @@ function pasangPeristiwa() {
     $("saring-sampai").value = "";
     gambarDaftarOrang();
   });
+  let sidebarCiut = false;
+  try {
+    sidebarCiut = localStorage.getItem(KUNCI_SIDEBAR) === "1";
+  } catch {
+    sidebarCiut = false;
+  }
+  terapkanSidebar(sidebarCiut);
+  $("tombol-sidebar").addEventListener("click", () => terapkanSidebar(!state.sidebarCiut));
+
   $("tombol-keluar").addEventListener("click", async () => {
     await api.keluar();
     state.pengguna = null;

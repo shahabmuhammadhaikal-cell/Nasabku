@@ -739,7 +739,31 @@ ul.pohon > li::before {
 
 /* ------------------------------- Responsif ----------------------------- */
 
+/* Sidebar ruang kerja bisa diciutkan — hanya di layar lebar. */
+.tombol-ciut {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.35rem;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+@media (min-width: 901px) {
+  .tata-letak.ciut {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tata-letak.ciut .panel-samping {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
+  .tombol-ciut {
+    display: none;
+  }
+
   .tata-letak {
     grid-template-columns: 1fr;
   }
