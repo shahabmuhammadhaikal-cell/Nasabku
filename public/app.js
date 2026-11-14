@@ -96,6 +96,7 @@ function pesan(elemen, teks) {
 
 function tampilkanMasuk() {
   $("tampilan-aplikasi").hidden = true;
+  $("navigasi-utama").hidden = true;
   $("sisi-pengguna").hidden = true;
   $("tampilan-masuk").hidden = false;
 }
@@ -103,8 +104,11 @@ function tampilkanMasuk() {
 async function bukaAplikasi() {
   $("tampilan-masuk").hidden = true;
   $("tampilan-aplikasi").hidden = false;
+  $("navigasi-utama").hidden = false;
   $("sisi-pengguna").hidden = false;
-  $("nama-pengguna").textContent = state.pengguna?.nama ?? "";
+  const nama = state.pengguna?.nama ?? "";
+  $("nama-pengguna").textContent = nama;
+  $("awalan-pengguna").textContent = (nama.trim().slice(0, 1) || "U").toUpperCase();
   await muatRuangKerja();
 }
 
@@ -1383,7 +1387,25 @@ function pasangPeristiwa() {
   terapkanSidebar(sidebarCiut);
   $("tombol-sidebar").addEventListener("click", () => terapkanSidebar(!state.sidebarCiut));
 
+  const tutupMenuPengguna = () => {
+    $("menu-pengguna").hidden = true;
+    $("tombol-pengguna").setAttribute("aria-expanded", "false");
+  };
+  $("tombol-pengguna").addEventListener("click", (peristiwa) => {
+    peristiwa.stopPropagation();
+    const akanBuka = $("menu-pengguna").hidden;
+    $("menu-pengguna").hidden = !akanBuka;
+    $("tombol-pengguna").setAttribute("aria-expanded", akanBuka ? "true" : "false");
+  });
+  document.addEventListener("click", (peristiwa) => {
+    if (!$("sisi-pengguna").contains(peristiwa.target)) tutupMenuPengguna();
+  });
+  document.addEventListener("keydown", (peristiwa) => {
+    if (peristiwa.key === "Escape") tutupMenuPengguna();
+  });
+
   $("tombol-keluar").addEventListener("click", async () => {
+    tutupMenuPengguna();
     await api.keluar();
     state.pengguna = null;
     state.ruang = null;

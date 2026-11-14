@@ -1330,3 +1330,213 @@ textarea:focus-visible,
     padding: 0.28rem 0.62rem;
   }
 }
+
+/* ------------------ Kepala hijau, menu pengguna, navigasi ------------------ */
+
+body {
+  background: linear-gradient(180deg, #eef7f1 0%, #edf5f4 45%, #e9f2ee 100%);
+}
+
+.puncak {
+  gap: 0.75rem;
+  color: #fff;
+  background: linear-gradient(96deg, #0a5334 0%, #0f6b44 58%, #12795a 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.puncak .merek {
+  gap: 0.6rem;
+  color: #fff;
+}
+
+.puncak .lambang {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 1.1rem;
+}
+
+.merek-teks {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.merek-teks strong {
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.merek-teks small {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.puncak .tombol-ciut {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.puncak .tombol-ciut:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.sisi-pengguna {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pengguna-tombol {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.24rem 0.6rem 0.24rem 0.26rem;
+  font: inherit;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pengguna-tombol:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.avatar-pengguna {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #f4faf6;
+  color: #0d5f3c;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.pengguna-teks {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.pengguna-teks strong {
+  max-width: 12rem;
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pengguna-teks small {
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.karet {
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+
+.menu-pengguna {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 40;
+  min-width: 10.5rem;
+  padding: 0.3rem;
+  background: var(--kartu);
+  border: 1px solid var(--garis);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(16, 40, 30, 0.2);
+}
+
+.menu-pengguna-item {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--teks);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-pengguna-item:hover,
+.menu-pengguna-item:focus-visible {
+  background: var(--hijau-muda);
+}
+
+.navigasi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1.1rem;
+  background: var(--kartu);
+  border-bottom: 1px solid var(--garis);
+}
+
+.navigasi-aksi {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tab-tampilan {
+  background: #f1f6f3;
+  border-color: var(--garis);
+}
+
+.tab-tampilan-tombol {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tab-tampilan-tombol span[aria-hidden="true"] {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.tab-tampilan-tombol.aktif {
+  background: var(--hijau-muda);
+  border: 1px solid var(--hijau);
+  box-shadow: none;
+}
+
+.panel-samping {
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.panel-utama {
+  background: transparent;
+}
+
+@media (min-width: 901px) {
+  .navigasi {
+    padding: 0.45rem 1.1rem;
+  }
+
+  .kolom-rinci {
+    max-height: calc(100vh - 110px);
+  }
+}

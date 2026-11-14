@@ -11,10 +11,14 @@
   <body>
     <header class="puncak">
       <div class="merek">
-        <span class="lambang" aria-hidden="true">🌳</span> Nasabku
+        <span class="lambang" aria-hidden="true">🌳</span>
+        <span class="merek-teks">
+          <strong>Nasabku</strong>
+          <small>Silsilah Keluarga</small>
+        </span>
         <button
           type="button"
-          class="tombol tombol-samar tombol-ciut"
+          class="tombol tombol-ciut"
           id="tombol-sidebar"
           aria-expanded="true"
           aria-controls="panel-samping"
@@ -25,10 +29,55 @@
         </button>
       </div>
       <div class="sisi-pengguna" id="sisi-pengguna" hidden>
-        <span id="nama-pengguna" class="nama-pengguna"></span>
-        <button type="button" class="tombol tombol-samar" id="tombol-keluar">Keluar</button>
+        <button
+          type="button"
+          class="pengguna-tombol"
+          id="tombol-pengguna"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="menu-pengguna"
+        >
+          <span class="avatar-pengguna" id="awalan-pengguna" aria-hidden="true">U</span>
+          <span class="pengguna-teks">
+            <strong id="nama-pengguna"></strong>
+            <small>Pengguna</small>
+          </span>
+          <span class="karet" aria-hidden="true">▾</span>
+        </button>
+        <div class="menu-pengguna" id="menu-pengguna" role="menu" hidden>
+          <button type="button" class="menu-pengguna-item" id="tombol-keluar" role="menuitem">
+            Keluar
+          </button>
+        </div>
       </div>
     </header>
+
+    <div class="navigasi" id="navigasi-utama" hidden>
+      <div class="tab-tampilan" role="tablist" aria-label="Tampilan panel">
+        <button type="button" class="tab-tampilan-tombol aktif" data-tampilan="ringkasan" role="tab" aria-selected="true">
+          <span aria-hidden="true">▤</span> Ringkasan
+        </button>
+        <button type="button" class="tab-tampilan-tombol" data-tampilan="orang" role="tab" aria-selected="false">
+          <span aria-hidden="true">☰</span> Daftar orang
+        </button>
+      </div>
+      <div class="navigasi-aksi">
+        <button type="button" class="tombol tombol-samar" id="tombol-ekspor" title="Unduh seluruh data sebagai JSON">
+          Ekspor
+        </button>
+        <button type="button" class="tombol tombol-samar" id="tombol-gedcom" title="Unduh sebagai GEDCOM untuk aplikasi silsilah lain">
+          GEDCOM
+        </button>
+        <button type="button" class="tombol tombol-samar" id="tombol-impor" title="Impor berkas GEDCOM">
+          Impor
+        </button>
+        <button type="button" class="tombol tombol-samar" id="tombol-kronologi" title="Urutan peristiwa keluarga">
+          Kronologi
+        </button>
+        <input type="file" id="berkas-gedcom" accept=".ged,.gedcom,text/plain" hidden />
+        <button type="button" class="tombol tombol-utama" id="tombol-tambah">+ Tambah orang</button>
+      </div>
+    </div>
 
     <main>
       <section id="tampilan-masuk" class="layar-masuk">
@@ -93,34 +142,12 @@
               <span id="jumlah-orang" class="keterangan kecil"></span>
             </div>
             <div class="alat-kanan">
-              <div class="tab-tampilan" role="tablist" aria-label="Tampilan panel">
-                <button type="button" class="tab-tampilan-tombol aktif" data-tampilan="ringkasan" role="tab" aria-selected="true">
-                  Ringkasan
-                </button>
-                <button type="button" class="tab-tampilan-tombol" data-tampilan="orang" role="tab" aria-selected="false">
-                  Daftar orang
-                </button>
-              </div>
               <input
                 type="search"
                 id="cari"
                 placeholder="Cari nama, panggilan, pekerjaan…"
                 aria-label="Cari nama"
               />
-              <button type="button" class="tombol tombol-samar" id="tombol-ekspor" title="Unduh seluruh data sebagai JSON">
-                Ekspor
-              </button>
-              <button type="button" class="tombol tombol-samar" id="tombol-gedcom" title="Unduh sebagai GEDCOM untuk aplikasi silsilah lain">
-                GEDCOM
-              </button>
-              <button type="button" class="tombol tombol-samar" id="tombol-impor" title="Impor berkas GEDCOM">
-                Impor
-              </button>
-              <button type="button" class="tombol tombol-samar" id="tombol-kronologi" title="Urutan peristiwa keluarga">
-                Kronologi
-              </button>
-              <input type="file" id="berkas-gedcom" accept=".ged,.gedcom,text/plain" hidden />
-              <button type="button" class="tombol tombol-utama" id="tombol-tambah">+ Tambah orang</button>
             </div>
           </div>
 
