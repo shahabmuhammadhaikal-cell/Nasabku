@@ -24,6 +24,19 @@ describe("akses admin", () => {
     expect(diterima.body.pengaturan.maksOrangPerRuang).toBe(0);
   });
 
+  it("menaikkan pengguna pertama menjadi admin saat basis data belum punya admin", async () => {
+    const { app, penyimpanan } = buatAplikasiUji();
+    const satu = await daftar(app, "satu@contoh.test", "Satu");
+    await penyimpanan.ubahPengguna(satu.penggunaId, { peran: "pengguna" });
+    expect((await penyimpanan.daftarPengguna()).some((akun) => akun.peran === "admin")).toBe(false);
+
+    const masuk = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "satu@contoh.test", sandi: SANDI_UJI });
+    expect(masuk.status).toBe(200);
+    expect(masuk.body.pengguna.peran).toBe("admin");
+  });
+
   it("menutup pendaftaran dan menyetujui akun yang menunggu", async () => {
     const { app } = buatAplikasiUji();
     const admin = await daftar(app, "admin@contoh.test", "Admin");

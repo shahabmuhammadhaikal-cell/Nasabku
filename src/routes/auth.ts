@@ -98,6 +98,18 @@ export function ruteAuth(penyimpanan: Penyimpanan, konfigurasi: Konfigurasi): Ro
       throw galat(403, "AKUN_NONAKTIF", "Akun ini dinonaktifkan admin. Hubungi admin keluarga.");
     }
 
+    // Jaring pengaman untuk basis data lama yang belum punya admin: pengguna aktif
+    // pertama yang masuk dinaikkan menjadi admin agar setelan tetap bisa diubah
+    // tanpa skrip terminal.
+    let peran = tersimpan.peran;
+    if (peran !== "admin") {
+      const semua = await penyimpanan.daftarPengguna();
+      if (!semua.some((satu) => satu.peran === "admin")) {
+        const dinaikkan = await penyimpanan.ubahPengguna(tersimpan.id, { peran: "admin" });
+        if (dinaikkan) peran = dinaikkan.peran;
+      }
+    }
+
     pasangKueSesi(res, await penyimpanan.buatSesi(tersimpan.id, konfigurasi.umurSesiHari));
     res.json({
       pengguna: {
@@ -105,7 +117,7 @@ export function ruteAuth(penyimpanan: Penyimpanan, konfigurasi: Konfigurasi): Ro
         email: tersimpan.email,
         nama: tersimpan.nama,
         dibuatPada: tersimpan.dibuatPada,
-        peran: tersimpan.peran,
+        peran,
         status: tersimpan.status,
       },
     });

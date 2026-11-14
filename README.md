@@ -103,7 +103,9 @@ kredensial Firestore:
 npm run admin:promote -- email@contoh.com
 ```
 
-Skrip itu menyetel `peran: admin` dan `status: aktif` untuk email tersebut. Setelan lain bisa diubah admin
+Skrip itu menyetel `peran: admin` dan `status: aktif` untuk email tersebut. Sebagai jaring pengaman, bila basis data
+sama sekali belum punya admin (mis. data lama sebelum fitur ini), pengguna aktif pertama yang **masuk** otomatis
+dinaikkan menjadi admin. Setelan lain bisa diubah admin
 dari tab **Admin** di aplikasi:
 
 | Setelan | Bawaan | Akibat bila dinyalakan |
