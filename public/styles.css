@@ -1540,3 +1540,16 @@ body {
     max-height: calc(100vh - 110px);
   }
 }
+
+/* Kerangka halaman: panel mengisi tinggi layar di bawah kepala dan navigasi. */
+main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-samping,
+.panel-utama {
+  align-self: stretch;
+}
