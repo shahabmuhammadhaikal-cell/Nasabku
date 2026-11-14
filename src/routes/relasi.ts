@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Penyimpanan } from "../data/penyimpanan.js";
 import { galat } from "../lib/kesalahan.js";
+import { ajukanUsulan, harusDiajukan } from "../lib/persetujuan.js";
 import { badanObjek, teksWajib } from "../lib/validasi.js";
 
 export function ruteRelasi(penyimpanan: Penyimpanan): Router {
@@ -41,6 +42,18 @@ export function ruteRelasi(penyimpanan: Penyimpanan): Router {
       );
     }
 
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: idRuang,
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "relasi",
+        aksi: "tambah",
+        data: { orangTuaId, anakId },
+      });
+      res.status(202).json({ usulan, pesan: "Relasi baru menunggu persetujuan admin." });
+      return;
+    }
+
     const relasi = await penyimpanan.buatRelasi(idRuang, orangTuaId, anakId);
     if (!relasi) {
       throw galat(409, "RELASI_SUDAH_ADA", "Relasi orang tua–anak ini sudah tercatat.");
@@ -49,7 +62,20 @@ export function ruteRelasi(penyimpanan: Penyimpanan): Router {
   });
 
   rute.delete("/:relasiId", async (req, res) => {
-    const terhapus = await penyimpanan.hapusRelasi(ruangId(req), String(req.params.relasiId));
+    const id = String(req.params.relasiId);
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: ruangId(req),
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "relasi",
+        aksi: "hapus",
+        targetId: id,
+        data: {},
+      });
+      res.status(202).json({ usulan, pesan: "Penghapusan relasi menunggu persetujuan admin." });
+      return;
+    }
+    const terhapus = await penyimpanan.hapusRelasi(ruangId(req), id);
     if (!terhapus) throw galat(404, "RELASI_TIDAK_DITEMUKAN", "Relasi tidak ditemukan.");
     res.status(204).end();
   });

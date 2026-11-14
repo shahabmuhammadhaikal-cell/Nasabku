@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Penyimpanan } from "../data/penyimpanan.js";
 import type { DataOrang, Orang } from "../data/tipe.js";
 import { galat } from "../lib/kesalahan.js";
+import { ajukanUsulan, harusDiajukan, periksaBatasOrang } from "../lib/persetujuan.js";
 import {
   badanObjek,
   jenisKelaminWajib,
@@ -95,7 +96,22 @@ export function ruteOrang(penyimpanan: Penyimpanan): Router {
 
   rute.post("/", async (req, res) => {
     const badan = badanObjek(req.body);
-    const orang = await penyimpanan.buatOrang(ruangId(req), rapikanData(badan, null));
+    const data = rapikanData(badan, null);
+
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: ruangId(req),
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "orang",
+        aksi: "tambah",
+        data: { ...data },
+      });
+      res.status(202).json({ usulan, pesan: "Penambahan orang menunggu persetujuan admin." });
+      return;
+    }
+
+    await periksaBatasOrang(penyimpanan, ruangId(req));
+    const orang = await penyimpanan.buatOrang(ruangId(req), data);
     res.status(201).json({ orang });
   });
 
@@ -111,13 +127,44 @@ export function ruteOrang(penyimpanan: Penyimpanan): Router {
     if (!lama) throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tidak ditemukan di ruang kerja ini.");
 
     const badan = badanObjek(req.body);
-    const orang = await penyimpanan.ubahOrang(ruangId(req), id, rapikanData(badan, lama));
+    const data = rapikanData(badan, lama);
+
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: ruangId(req),
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "orang",
+        aksi: "ubah",
+        targetId: id,
+        data: { ...data },
+      });
+      res.status(202).json({ usulan, pesan: "Perubahan data menunggu persetujuan admin." });
+      return;
+    }
+
+    const orang = await penyimpanan.ubahOrang(ruangId(req), id, data);
     if (!orang) throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tidak ditemukan di ruang kerja ini.");
     res.json({ orang });
   });
 
   rute.delete("/:orangId", async (req, res) => {
-    const terhapus = await penyimpanan.hapusOrang(ruangId(req), String(req.params.orangId));
+    const id = String(req.params.orangId);
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const lama = await penyimpanan.ambilOrang(ruangId(req), id);
+      if (!lama) throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tidak ditemukan di ruang kerja ini.");
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: ruangId(req),
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "orang",
+        aksi: "hapus",
+        targetId: id,
+        data: { nama: lama.nama },
+      });
+      res.status(202).json({ usulan, pesan: "Penghapusan orang menunggu persetujuan admin." });
+      return;
+    }
+
+    const terhapus = await penyimpanan.hapusOrang(ruangId(req), id);
     if (!terhapus) {
       throw galat(404, "ORANG_TIDAK_DITEMUKAN", "Orang tidak ditemukan di ruang kerja ini.");
     }

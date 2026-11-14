@@ -9,22 +9,32 @@ import {
 } from "../lib/silsilah.js";
 import type { BasisDokumen } from "./port.js";
 import type {
+  AksiUsulan,
   DataOrang,
   DataPasangan,
+  JenisUsulan,
   Orang,
   Pasangan,
+  Pengaturan,
   PenggunaPublik,
   PenggunaTersimpan,
+  PeranPengguna,
   Relasi,
   RuangKerja,
+  StatusPengguna,
+  StatusRuangKerja,
+  StatusUsulan,
+  Usulan,
 } from "./tipe.js";
 import {
   keOrang,
   kePasangan,
+  kePengaturan,
   kePengguna,
   kePenggunaTersimpan,
   keRelasi,
   keRuangKerja,
+  keUsulan,
   teks,
 } from "./tipe.js";
 
@@ -36,14 +46,37 @@ export interface Penyimpanan {
   readonly tersedia: boolean;
 
   cariPengguna(email: string): Promise<PenggunaTersimpan | null>;
-  buatPengguna(data: { email: string; nama: string; sandiHash: string }): Promise<PenggunaPublik | null>;
+  buatPengguna(data: {
+    email: string;
+    nama: string;
+    sandiHash: string;
+    peran?: PeranPengguna;
+    status?: StatusPengguna;
+  }): Promise<PenggunaPublik | null>;
+  daftarPengguna(): Promise<PenggunaPublik[]>;
+  hitungPengguna(): Promise<number>;
+  ubahPengguna(
+    id: string,
+    data: { peran?: PeranPengguna; status?: StatusPengguna; nama?: string },
+  ): Promise<PenggunaPublik | null>;
+  /** Menghapus akun beserta seluruh ruang kerja dan sesinya. */
+  hapusPengguna(id: string): Promise<boolean>;
+
+  ambilPengaturan(): Promise<Pengaturan>;
+  simpanPengaturan(data: Partial<Pengaturan>): Promise<Pengaturan>;
 
   buatSesi(penggunaId: string, umurHari: number): Promise<string>;
   penggunaDariSesi(token: string): Promise<PenggunaPublik | null>;
   hapusSesi(token: string): Promise<void>;
 
   daftarRuangKerja(pemilikId: string): Promise<RuangKerja[]>;
-  buatRuangKerja(pemilikId: string, nama: string): Promise<RuangKerja>;
+  daftarSemuaRuangKerja(): Promise<RuangKerja[]>;
+  buatRuangKerja(
+    pemilikId: string,
+    nama: string,
+    status?: StatusRuangKerja,
+  ): Promise<RuangKerja>;
+  ubahStatusRuangKerja(id: string, status: StatusRuangKerja): Promise<RuangKerja | null>;
   ambilRuangKerja(id: string, pemilikId: string): Promise<RuangKerja | null>;
   ubahNamaRuangKerja(ruang: RuangKerja, nama: string): Promise<RuangKerja>;
   hapusRuangKerja(id: string): Promise<void>;
@@ -77,6 +110,21 @@ export interface Penyimpanan {
     kedalaman: number,
   ): Promise<HasilSilsilah | null>;
 
+  daftarUsulan(status?: StatusUsulan): Promise<Usulan[]>;
+  buatUsulan(data: {
+    ruangKerjaId: string;
+    penggunaId: string;
+    jenis: JenisUsulan;
+    aksi: AksiUsulan;
+    targetId: string | null;
+    data: Record<string, unknown>;
+  }): Promise<Usulan>;
+  ambilUsulan(id: string): Promise<Usulan | null>;
+  putuskanUsulan(
+    id: string,
+    data: { status: StatusUsulan; catatanAdmin: string | null },
+  ): Promise<Usulan | null>;
+
   cekKesiapan(): Promise<boolean>;
   tutup(): Promise<void>;
 }
@@ -96,6 +144,8 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
   const emailIndex = basis.koleksi(["emailIndex"]);
   const sesi = basis.koleksi(["sesi"]);
   const ruang = basis.koleksi(["ruangKerja"]);
+  const pengaturan = basis.koleksi(["pengaturan"]);
+  const usulan = basis.koleksi(["usulan"]);
   const orangDi = (ruangKerjaId: string) => basis.koleksi(["ruangKerja", ruangKerjaId, "orang"]);
   const relasiDi = (ruangKerjaId: string) => basis.koleksi(["ruangKerja", ruangKerjaId, "relasi"]);
   const pasanganDi = (ruangKerjaId: string) => basis.koleksi(["ruangKerja", ruangKerjaId, "pasangan"]);
@@ -120,18 +170,100 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
       return dokumen ? kePenggunaTersimpan(dokumen) : null;
     },
 
-    async buatPengguna({ email, nama, sandiHash }) {
+    async buatPengguna({ email, nama, sandiHash, peran = "pengguna", status = "aktif" }) {
       const id = randomUUID();
       const dibuatPada = new Date().toISOString();
       // Dokumen pengguna dibuat lebih dulu, lalu email diklaim; bila klaim gagal
       // (pendaftaran bersamaan dengan email sama) dokumen itu dibuang lagi.
-      await pengguna.simpan(id, { email, nama, sandiHash, dibuatPada });
+      await pengguna.simpan(id, { email, nama, sandiHash, dibuatPada, peran, status });
       const terklaim = await emailIndex.buat(email, { penggunaId: id, dibuatPada });
       if (!terklaim) {
         await pengguna.hapus(id);
         return null;
       }
-      return { id, email, nama, dibuatPada };
+      return { id, email, nama, dibuatPada, peran, status };
+    },
+
+    async daftarPengguna() {
+      const dokumen = await pengguna.daftar(BATAS_DOKUMEN);
+      return dokumen
+        .map(kePengguna)
+        .sort((a, b) => a.dibuatPada.localeCompare(b.dibuatPada) || a.id.localeCompare(b.id));
+    },
+
+    async hitungPengguna() {
+      return (await pengguna.daftar(BATAS_DOKUMEN)).length;
+    },
+
+    async ubahPengguna(id, data) {
+      const dokumen = await pengguna.ambil(id);
+      if (!dokumen) return null;
+      const lama = kePengguna(dokumen);
+      const baru: PenggunaPublik = {
+        ...lama,
+        ...("peran" in data && data.peran ? { peran: data.peran } : {}),
+        ...("status" in data && data.status ? { status: data.status } : {}),
+        ...("nama" in data && data.nama ? { nama: data.nama } : {}),
+      };
+      await pengguna.simpan(id, {
+        ...dokumen.data,
+        nama: baru.nama,
+        peran: baru.peran,
+        status: baru.status,
+      });
+      return baru;
+    },
+
+    async hapusPengguna(id) {
+      const dokumen = await pengguna.ambil(id);
+      if (!dokumen) return false;
+      const email = teks(dokumen.data.email);
+
+      // Sesi milik pengguna ini tidak berguna lagi.
+      for (const sesiDokumen of await sesi.daftar(BATAS_DOKUMEN)) {
+        if (sesiDokumen.data.penggunaId === id) await sesi.hapus(sesiDokumen.id);
+      }
+
+      // Data silsilah miliknya ikut dihapus agar tidak menjadi yatim.
+      for (const ruangKerja of await ruang.cari("pemilikId", id)) {
+        const ruangId = ruangKerja.id;
+        for (const dokumenOrang of await orangDi(ruangId).daftar(BATAS_DOKUMEN)) {
+          await orangDi(ruangId).hapus(dokumenOrang.id);
+        }
+        for (const dokumenRelasi of await relasiDi(ruangId).daftar(BATAS_DOKUMEN)) {
+          await relasiDi(ruangId).hapus(dokumenRelasi.id);
+        }
+        for (const dokumenPasangan of await pasanganDi(ruangId).daftar(BATAS_DOKUMEN)) {
+          await pasanganDi(ruangId).hapus(dokumenPasangan.id);
+        }
+        await ruang.hapus(ruangId);
+      }
+
+      // Usulan yang belum diputuskan tidak ada gunanya tanpa pengusulnya.
+      for (const dokumenUsulan of await usulan.daftar(BATAS_DOKUMEN)) {
+        if (dokumenUsulan.data.penggunaId === id) await usulan.hapus(dokumenUsulan.id);
+      }
+
+      if (email) await emailIndex.hapus(email);
+      await pengguna.hapus(id);
+      return true;
+    },
+
+    async ambilPengaturan() {
+      return kePengaturan(await pengaturan.ambil("global"));
+    },
+
+    async simpanPengaturan(data) {
+      const lama = kePengaturan(await pengaturan.ambil("global"));
+      const baru: Pengaturan = {
+        pendaftaranTerbuka: data.pendaftaranTerbuka ?? lama.pendaftaranTerbuka,
+        setujuiPendaftaran: data.setujuiPendaftaran ?? lama.setujuiPendaftaran,
+        setujuiRuangKerja: data.setujuiRuangKerja ?? lama.setujuiRuangKerja,
+        setujuiPerubahan: data.setujuiPerubahan ?? lama.setujuiPerubahan,
+        maksOrangPerRuang: data.maksOrangPerRuang ?? lama.maksOrangPerRuang,
+      };
+      await pengaturan.simpan("global", { ...baru });
+      return baru;
     },
 
     async buatSesi(penggunaId, umurHari) {
@@ -174,11 +306,25 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
         .sort((a, b) => a.dibuatPada.localeCompare(b.dibuatPada) || a.id.localeCompare(b.id));
     },
 
-    async buatRuangKerja(pemilikId, nama) {
+    async buatRuangKerja(pemilikId, nama, status = "aktif") {
       const id = randomUUID();
       const dibuatPada = new Date().toISOString();
-      await ruang.simpan(id, { nama, pemilikId, dibuatPada });
-      return { id, nama, pemilikId, dibuatPada };
+      await ruang.simpan(id, { nama, pemilikId, dibuatPada, status });
+      return { id, nama, pemilikId, dibuatPada, status };
+    },
+
+    async daftarSemuaRuangKerja() {
+      return (await ruang.daftar(BATAS_DOKUMEN))
+        .map(keRuangKerja)
+        .sort((a, b) => a.dibuatPada.localeCompare(b.dibuatPada) || a.id.localeCompare(b.id));
+    },
+
+    async ubahStatusRuangKerja(id, status) {
+      const dokumen = await ruang.ambil(id);
+      if (!dokumen) return null;
+      const lama = keRuangKerja(dokumen);
+      await ruang.simpan(id, { ...dokumen.data, status });
+      return { ...lama, status };
     },
 
     async ambilRuangKerja(id, pemilikId) {
@@ -190,9 +336,8 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
 
     async ubahNamaRuangKerja(ruangKerja, nama) {
       await ruang.simpan(ruangKerja.id, {
+        ...ruangKerja,
         nama,
-        pemilikId: ruangKerja.pemilikId,
-        dibuatPada: ruangKerja.dibuatPada,
       });
       return { ...ruangKerja, nama };
     },
@@ -349,6 +494,53 @@ export function buatPenyimpanan(basis: BasisDokumen): Penyimpanan {
         relasiDi(ruangKerjaId).daftar(BATAS_DOKUMEN).then((daftar) => daftar.map(keRelasi)),
       ]);
       return telusuriSilsilah(keOrang(dokumenAkar), orang, relasi, arah, kedalaman);
+    },
+
+    async daftarUsulan(status) {
+      const dokumen = await usulan.daftar(BATAS_DOKUMEN);
+      return dokumen
+        .map(keUsulan)
+        .filter((satu) => (status ? satu.status === status : true))
+        .sort((a, b) => a.dibuatPada.localeCompare(b.dibuatPada) || a.id.localeCompare(b.id));
+    },
+
+    async buatUsulan({ ruangKerjaId, penggunaId, jenis, aksi, targetId, data }) {
+      const id = randomUUID();
+      const dibuatPada = new Date().toISOString();
+      const usulanBaru: Usulan = {
+        id,
+        ruangKerjaId,
+        penggunaId,
+        jenis,
+        aksi,
+        targetId,
+        data,
+        status: "menunggu",
+        dibuatPada,
+        diputuskanPada: null,
+        catatanAdmin: null,
+      };
+      await usulan.simpan(id, { ...usulanBaru });
+      return usulanBaru;
+    },
+
+    async ambilUsulan(id) {
+      const dokumen = await usulan.ambil(id);
+      return dokumen ? keUsulan(dokumen) : null;
+    },
+
+    async putuskanUsulan(id, { status, catatanAdmin }) {
+      const dokumen = await usulan.ambil(id);
+      if (!dokumen) return null;
+      const lama = keUsulan(dokumen);
+      const baru: Usulan = {
+        ...lama,
+        status,
+        catatanAdmin,
+        diputuskanPada: new Date().toISOString(),
+      };
+      await usulan.simpan(id, { ...baru });
+      return baru;
     },
 
     async cekKesiapan() {

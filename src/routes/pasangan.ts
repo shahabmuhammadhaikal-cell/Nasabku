@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Penyimpanan } from "../data/penyimpanan.js";
 import type { Pasangan, StatusPernikahan } from "../data/tipe.js";
 import { galat } from "../lib/kesalahan.js";
+import { ajukanUsulan, harusDiajukan } from "../lib/persetujuan.js";
 import { tahunDari } from "../lib/tanggal.js";
 import { urutkanPerOrang } from "../lib/pernikahan.js";
 import { badanObjek, tanggalOpsional, teksWajib } from "../lib/validasi.js";
@@ -107,11 +108,21 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       tanggalOpsional(badan, "tanggalBerakhir", "Tanggal berakhir") ?? null,
     );
 
-    const pasangan = await penyimpanan.buatPasangan(idRuang, orangAId, orangBId, {
-      tanggalMenikah,
-      status,
-      tanggalBerakhir,
-    });
+    const dataBaru = { tanggalMenikah, status, tanggalBerakhir };
+
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: idRuang,
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "pasangan",
+        aksi: "tambah",
+        data: { orangAId, orangBId, ...dataBaru },
+      });
+      res.status(202).json({ usulan, pesan: "Hubungan pasangan menunggu persetujuan admin." });
+      return;
+    }
+
+    const pasangan = await penyimpanan.buatPasangan(idRuang, orangAId, orangBId, dataBaru);
     if (!pasangan) {
       throw galat(409, "PASANGAN_SUDAH_ADA", "Hubungan pasangan ini sudah tercatat.");
     }
@@ -148,11 +159,22 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
       tahunDari(orangB?.tanggalLahir ?? null),
     ]);
 
-    const pasangan = await penyimpanan.ubahPasangan(idRuang, id, {
-      tanggalMenikah,
-      status,
-      tanggalBerakhir,
-    });
+    const dataBaru = { tanggalMenikah, status, tanggalBerakhir };
+
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: idRuang,
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "pasangan",
+        aksi: "ubah",
+        targetId: id,
+        data: { ...dataBaru },
+      });
+      res.status(202).json({ usulan, pesan: "Perubahan hubungan pasangan menunggu persetujuan admin." });
+      return;
+    }
+
+    const pasangan = await penyimpanan.ubahPasangan(idRuang, id, dataBaru);
     if (!pasangan) throw galat(404, "PASANGAN_TIDAK_DITEMUKAN", "Hubungan pasangan tidak ditemukan.");
     const [berurut] = urutkanPerOrang(await penyimpanan.daftarPasangan(idRuang)).filter(
       (satu) => satu.id === pasangan.id,
@@ -161,7 +183,20 @@ export function rutePasangan(penyimpanan: Penyimpanan): Router {
   });
 
   rute.delete("/:pasanganId", async (req, res) => {
-    const terhapus = await penyimpanan.hapusPasangan(ruangId(req), String(req.params.pasanganId));
+    const id = String(req.params.pasanganId);
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      const usulan = await ajukanUsulan(penyimpanan, {
+        ruangKerjaId: ruangId(req),
+        penggunaId: req.pengguna?.id ?? "",
+        jenis: "pasangan",
+        aksi: "hapus",
+        targetId: id,
+        data: {},
+      });
+      res.status(202).json({ usulan, pesan: "Penghapusan hubungan pasangan menunggu persetujuan admin." });
+      return;
+    }
+    const terhapus = await penyimpanan.hapusPasangan(ruangId(req), id);
     if (!terhapus) throw galat(404, "PASANGAN_TIDAK_DITEMUKAN", "Hubungan pasangan tidak ditemukan.");
     res.status(204).end();
   });

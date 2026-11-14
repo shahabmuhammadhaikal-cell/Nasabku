@@ -132,4 +132,20 @@ export const api = {
 
   silsilah: (ruangId, orangId, arah, kedalaman = 5) =>
     panggil(`/workspaces/${ruangId}/tree/${orangId}?arah=${arah}&kedalaman=${kedalaman}`),
+
+  usulanSaya: () => panggil("/usulan"),
+
+  adminPengaturan: () => panggil("/admin/pengaturan"),
+  simpanPengaturan: (data) => panggil("/admin/pengaturan", { metode: "PATCH", badan: data }),
+  adminPengguna: () => panggil("/admin/pengguna"),
+  adminUbahPengguna: (id, data) =>
+    panggil(`/admin/pengguna/${id}`, { metode: "PATCH", badan: data }),
+  adminHapusPengguna: (id) => panggil(`/admin/pengguna/${id}`, { metode: "DELETE" }),
+  adminRuangKerja: () => panggil("/admin/ruang-kerja"),
+  adminUbahRuangKerja: (id, status) =>
+    panggil(`/admin/ruang-kerja/${id}`, { metode: "PATCH", badan: { status } }),
+  adminUsulan: (status = "menunggu") =>
+    panggil(`/admin/usulan${status ? `?status=${status}` : ""}`),
+  adminPutuskanUsulan: (id, status, catatan = null) =>
+    panggil(`/admin/usulan/${id}`, { metode: "PATCH", badan: { status, catatan } }),
 };

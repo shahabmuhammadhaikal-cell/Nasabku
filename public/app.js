@@ -109,6 +109,7 @@ async function bukaAplikasi() {
   const nama = state.pengguna?.nama ?? "";
   $("nama-pengguna").textContent = nama;
   $("awalan-pengguna").textContent = (nama.trim().slice(0, 1) || "U").toUpperCase();
+  terapkanPeran();
   await muatRuangKerja();
 }
 
@@ -182,6 +183,12 @@ async function tanganiDaftar(peristiwa) {
       email: String(data.get("email") ?? ""),
       sandi: String(data.get("sandi") ?? ""),
     });
+    if (hasil.menunggu) {
+      // Belum ada sesi: akun harus disetujui admin lebih dulu.
+      formulir.reset();
+      pesan($("pesan-masuk"), hasil.pesan ?? "Akun menunggu persetujuan admin.");
+      return;
+    }
     state.pengguna = hasil.pengguna;
     formulir.reset();
     await bukaAplikasi();
@@ -524,10 +531,10 @@ function gambarRingkasan() {
     </div>`;
 }
 
-/** Mengalihkan kolom tengah antara ringkasan dan daftar orang. */
+/** Mengalihkan kolom tengah antara ringkasan, daftar orang, dan panel admin. */
 function setTampilan(mode) {
-  state.tampilan = mode === "orang" ? "orang" : "ringkasan";
-  const ringkasan = mode === "ringkasan";
+  const diminta = mode === "orang" || mode === "admin" ? mode : "ringkasan";
+  state.tampilan = diminta === "admin" && state.pengguna?.peran !== "admin" ? "ringkasan" : diminta;
 
   for (const tombol of document.querySelectorAll(".tab-tampilan-tombol")) {
     const aktif = tombol.dataset.tampilan === state.tampilan;
@@ -535,19 +542,220 @@ function setTampilan(mode) {
     tombol.setAttribute("aria-selected", aktif ? "true" : "false");
   }
 
+  const ringkasan = state.tampilan === "ringkasan";
+  const daftar = state.tampilan === "orang";
+  const admin = state.tampilan === "admin";
+
   const wadah = $("ringkasan");
   if (wadah) wadah.hidden = !ringkasan;
-  $("daftar-orang").hidden = ringkasan;
-  $("saring").hidden = ringkasan;
-  if ($("statistik")) $("statistik").hidden = ringkasan || !state.statistik;
+  if ($("admin")) $("admin").hidden = !admin;
+  $("daftar-orang").hidden = !daftar;
+  $("saring").hidden = !daftar;
+  if ($("statistik")) $("statistik").hidden = !daftar || !state.statistik;
   $("kosong-orang").hidden = true;
   $("kosong-saring").hidden = true;
 
   if (ringkasan) gambarRingkasan();
+  else if (admin) gambarAdmin();
   else gambarDaftarOrang();
 
   if (!state.statistik) muatStatistik();
   else gambarStatistik(state.statistik);
+}
+
+/* --------------------------------- Admin ---------------------------------- */
+
+/** Tab Admin hanya terlihat untuk akun berperan admin. */
+function terapkanPeran() {
+  const admin = state.pengguna?.peran === "admin";
+  const tab = $("tab-admin");
+  if (tab) tab.hidden = !admin;
+  if (!admin && state.tampilan === "admin") setTampilan("ringkasan");
+}
+
+/** Beberapa aksi (usulan) tidak langsung mengubah data; beri tahu pengguna. */
+function diajukan(hasil) {
+  if (!hasil?.usulan) return false;
+  alert(hasil.pesan ?? "Perubahan diajukan dan menunggu persetujuan admin.");
+  return true;
+}
+
+function barisAdmin(isi, tombol) {
+  return `<li class="admin-baris"><span class="admin-isi">${isi}</span><span class="admin-tombol">${tombol}</span></li>`;
+}
+
+async function gambarAdmin() {
+  const wadah = $("admin");
+  if (!wadah) return;
+  wadah.innerHTML = `<p class="keterangan kecil">Memuat pengaturan admin…</p>`;
+
+  try {
+    const [hasilAturan, hasilPengguna, hasilRuang, hasilUsulan] = await Promise.all([
+      api.adminPengaturan(),
+      api.adminPengguna(),
+      api.adminRuangKerja(),
+      api.adminUsulan("menunggu"),
+    ]);
+    const aturan = hasilAturan.pengaturan;
+    const saya = state.pengguna?.id;
+    const akunMenunggu = hasilPengguna.pengguna.filter((satu) => satu.status === "menunggu");
+    const ruangMenunggu = hasilRuang.ruangKerja.filter((satu) => satu.status === "menunggu");
+    const usulanMenunggu = hasilUsulan.usulan;
+
+    const centang = (nama, label, nilai, catatan) => `
+      <label class="admin-centang">
+        <input type="checkbox" name="${nama}" ${nilai ? "checked" : ""} />
+        <span>${esc(label)}${catatan ? `<small class="keterangan kecil">${esc(catatan)}</small>` : ""}</span>
+      </label>`;
+
+    const daftarPengguna =
+      hasilPengguna.pengguna
+        .map((satu) => {
+          const diriSendiri = satu.id === saya;
+          const tombol = diriSendiri
+            ? `<small class="keterangan kecil">Akun Anda</small>`
+            : [
+                `<button type="button" class="tombol tombol-samar kecil" data-admin="${
+                  satu.status === "nonaktif" ? "aktifkan" : "nonaktifkan"
+                }" data-id="${esc(satu.id)}">${satu.status === "nonaktif" ? "Aktifkan" : "Nonaktifkan"}</button>`,
+                `<button type="button" class="tombol tombol-samar kecil" data-admin="${
+                  satu.peran === "admin" ? "cabut-admin" : "jadikan-admin"
+                }" data-id="${esc(satu.id)}">${satu.peran === "admin" ? "Cabut admin" : "Jadikan admin"}</button>`,
+                `<button type="button" class="tombol tombol-bahaya kecil" data-admin="hapus-pengguna" data-id="${esc(satu.id)}">Hapus</button>`,
+              ].join(" ");
+          return barisAdmin(
+            `<strong>${esc(satu.nama)}</strong> <span class="lencana">${esc(satu.peran)}</span><small>${esc(
+              satu.email,
+            )} · ${esc(satu.status)} · ${satu.jumlahRuangKerja} ruang kerja</small>`,
+            tombol,
+          );
+        })
+        .join("") || `<li class="keterangan kecil">Belum ada pengguna.</li>`;
+
+    const daftarMenunggu = [
+      ...akunMenunggu.map((satu) =>
+        barisAdmin(
+          `<strong>${esc(satu.nama)}</strong><small>Akun baru · ${esc(satu.email)}</small>`,
+          `<button type="button" class="tombol tombol-utama kecil" data-admin="setujui-pengguna" data-id="${esc(
+            satu.id,
+          )}">Setujui akun</button>`,
+        ),
+      ),
+      ...ruangMenunggu.map((satu) =>
+        barisAdmin(
+          `<strong>${esc(satu.nama)}</strong><small>Ruang kerja · ${esc(satu.pemilikNama)}</small>`,
+          `<button type="button" class="tombol tombol-utama kecil" data-admin="setujui-ruang" data-id="${esc(
+            satu.id,
+          )}">Setujui ruang</button>`,
+        ),
+      ),
+      ...usulanMenunggu.map((satu) =>
+        barisAdmin(
+          `<strong>${esc(satu.ringkasan)}</strong><small>${esc(satu.penggunaNama)} · ${esc(
+            satu.ruangNama,
+          )}</small>`,
+          `<button type="button" class="tombol tombol-utama kecil" data-admin="usulan-setuju" data-id="${esc(
+            satu.id,
+          )}">Setujui</button> <button type="button" class="tombol tombol-samar kecil" data-admin="usulan-tolak" data-id="${esc(
+            satu.id,
+          )}">Tolak</button>`,
+        ),
+      ),
+    ].join("");
+
+    wadah.innerHTML = `
+      <p class="pesan" id="pesan-admin" role="alert" hidden></p>
+      <section class="kartu admin-kartu">
+        <header>
+          <h3>Pengaturan</h3>
+          <p class="keterangan kecil">Berlaku untuk semua pengguna Nasabku.</p>
+        </header>
+        <form id="form-pengaturan" class="admin-form" novalidate>
+          ${centang("pendaftaranTerbuka", "Buka pendaftaran akun baru", aturan.pendaftaranTerbuka)}
+          ${centang("setujuiPendaftaran", "Akun baru harus disetujui admin", aturan.setujuiPendaftaran, "Tanpa persetujuan, akun langsung aktif.")}
+          ${centang("setujuiRuangKerja", "Ruang kerja baru harus disetujui admin", aturan.setujuiRuangKerja, "Ruang kerja yang menunggu belum bisa diisi data.")}
+          ${centang("setujuiPerubahan", "Perubahan data silsilah harus disetujui admin", aturan.setujuiPerubahan, "Pengguna biasa mengajukan usulan; admin langsung menulis.")}
+          <label class="admin-batas">
+            Batas orang per ruang kerja
+            <input type="number" name="maksOrangPerRuang" min="0" max="100000" step="1" value="${Number(
+              aturan.maksOrangPerRuang,
+            )}" />
+            <small class="keterangan kecil">0 berarti tanpa batas.</small>
+          </label>
+          <button type="submit" class="tombol tombol-utama">Simpan pengaturan</button>
+        </form>
+      </section>
+
+      <section class="kartu admin-kartu">
+        <header>
+          <h3>Menunggu persetujuan</h3>
+          <p class="keterangan kecil">Akun, ruang kerja, dan usulan perubahan yang menunggu keputusan Anda.</p>
+        </header>
+        <ul class="admin-daftar">
+          ${daftarMenunggu || `<li class="keterangan kecil">Tidak ada yang menunggu. Semua sudah diputuskan.</li>`}
+        </ul>
+      </section>
+
+      <section class="kartu admin-kartu">
+        <header>
+          <h3>Pengguna</h3>
+          <p class="keterangan kecil">Nonaktifkan akun untuk mencabut akses tanpa menghapus datanya, atau hapus untuk membuang akun beserta ruang kerjanya.</p>
+        </header>
+        <ul class="admin-daftar">${daftarPengguna}</ul>
+      </section>`;
+  } catch (galat) {
+    wadah.innerHTML = `<p class="pesan" role="alert">${esc(galat.message)}</p>`;
+  }
+}
+
+async function simpanPengaturanAdmin(peristiwa) {
+  peristiwa.preventDefault();
+  const form = peristiwa.currentTarget;
+  const tombol = form.querySelector("button[type=submit]");
+  tombol.disabled = true;
+  try {
+    await api.simpanPengaturan({
+      pendaftaranTerbuka: form.elements.pendaftaranTerbuka.checked,
+      setujuiPendaftaran: form.elements.setujuiPendaftaran.checked,
+      setujuiRuangKerja: form.elements.setujuiRuangKerja.checked,
+      setujuiPerubahan: form.elements.setujuiPerubahan.checked,
+      maksOrangPerRuang: Number(form.elements.maksOrangPerRuang.value || 0),
+    });
+    await gambarAdmin();
+    pesan($("pesan-admin"), "Pengaturan tersimpan.");
+  } catch (galat) {
+    pesan($("pesan-admin"), galat.message);
+  } finally {
+    tombol.disabled = false;
+  }
+}
+
+async function tanganiAksiAdmin(tombol) {
+  const aksi = tombol.dataset.admin;
+  const id = tombol.dataset.id ?? "";
+  tombol.disabled = true;
+  try {
+    if (aksi === "setujui-pengguna") await api.adminUbahPengguna(id, { status: "aktif" });
+    else if (aksi === "aktifkan") await api.adminUbahPengguna(id, { status: "aktif" });
+    else if (aksi === "nonaktifkan") await api.adminUbahPengguna(id, { status: "nonaktif" });
+    else if (aksi === "jadikan-admin") await api.adminUbahPengguna(id, { peran: "admin" });
+    else if (aksi === "cabut-admin") await api.adminUbahPengguna(id, { peran: "pengguna" });
+    else if (aksi === "setujui-ruang") await api.adminUbahRuangKerja(id, "aktif");
+    else if (aksi === "usulan-setuju") await api.adminPutuskanUsulan(id, "disetujui");
+    else if (aksi === "usulan-tolak") await api.adminPutuskanUsulan(id, "ditolak");
+    else if (aksi === "hapus-pengguna") {
+      if (!confirm("Hapus akun ini beserta seluruh ruang kerja dan data silsilahnya?")) {
+        tombol.disabled = false;
+        return;
+      }
+      await api.adminHapusPengguna(id);
+    }
+    await gambarAdmin();
+    if (aksi === "usulan-setuju") await muatOrang();
+  } catch (galat) {
+    tombol.disabled = false;
+    pesan($("pesan-admin"), galat.message);
+  }
 }
 
 function unduhBerkas(isi, namaBerkasUnduhan, tipe) {
@@ -768,11 +976,19 @@ async function simpanOrang(peristiwa) {
   try {
     if (state.modeForm === "tambah") {
       const hasil = await api.buatOrang(state.ruang.id, data);
+      if (diajukan(hasil)) {
+        tutupFormOrang();
+        return;
+      }
       await muatOrang();
       tutupFormOrang();
       await bukaRinci(hasil.orang.id);
     } else {
-      await api.ubahOrang(state.ruang.id, state.modeForm, data);
+      const hasil = await api.ubahOrang(state.ruang.id, state.modeForm, data);
+      if (diajukan(hasil)) {
+        tutupFormOrang();
+        return;
+      }
       await muatOrang();
       tutupFormOrang();
       await bukaRinci(state.modeForm);
@@ -949,9 +1165,10 @@ async function bukaRinci(orangId) {
 
   panel.querySelector('[data-aksi="hapus"]').addEventListener("click", async () => {
     if (!confirm(`Hapus ${orang.nama} beserta semua relasinya?`)) return;
-    await api.hapusOrang(state.ruang.id, orang.id);
+    const hasil = await api.hapusOrang(state.ruang.id, orang.id);
     panel.hidden = true;
     state.terpilihId = null;
+    diajukan(hasil);
     await muatOrang();
   });
 
@@ -960,8 +1177,11 @@ async function bukaRinci(orangId) {
     const idLain = pilihan?.value;
     if (!idLain) return;
     try {
-      if (peran === "orangTua") await api.buatRelasi(state.ruang.id, idLain, orang.id);
-      else await api.buatRelasi(state.ruang.id, orang.id, idLain);
+      const hasil =
+        peran === "orangTua"
+          ? await api.buatRelasi(state.ruang.id, idLain, orang.id)
+          : await api.buatRelasi(state.ruang.id, orang.id, idLain);
+      diajukan(hasil);
       await bukaRinci(orang.id);
     } catch (galat) {
       pesan($("pesan-rinci"), galat.message);
@@ -984,13 +1204,15 @@ async function bukaRinci(orangId) {
       tanggalBerakhir: status === "menikah" || berakhirMentah === "" ? null : berakhirMentah,
     };
     try {
+      let hasil;
       if (state.ubahPasangan) {
-        await api.ubahPasangan(state.ruang.id, state.ubahPasangan, data);
+        hasil = await api.ubahPasangan(state.ruang.id, state.ubahPasangan, data);
       } else {
         const pilihan = form.querySelector('[data-isian="pasangan"]');
         if (!pilihan?.value) return;
-        await api.buatPasangan(state.ruang.id, orang.id, pilihan.value, data);
+        hasil = await api.buatPasangan(state.ruang.id, orang.id, pilihan.value, data);
       }
+      diajukan(hasil);
       state.ubahPasangan = null;
       await muatOrang();
       await bukaRinci(orang.id);
@@ -1013,7 +1235,7 @@ async function bukaRinci(orangId) {
   panel.addEventListener("click", async (peristiwa) => {
     const tombolHapus = peristiwa.target.closest("[data-hapus-relasi]");
     if (tombolHapus) {
-      await api.hapusRelasi(state.ruang.id, tombolHapus.dataset.hapusRelasi);
+      diajukan(await api.hapusRelasi(state.ruang.id, tombolHapus.dataset.hapusRelasi));
       await bukaRinci(orang.id);
       return;
     }
@@ -1025,7 +1247,7 @@ async function bukaRinci(orangId) {
     }
     const tombolPasangan = peristiwa.target.closest("[data-hapus-pasangan]");
     if (tombolPasangan) {
-      await api.hapusPasangan(state.ruang.id, tombolPasangan.dataset.hapusPasangan);
+      diajukan(await api.hapusPasangan(state.ruang.id, tombolPasangan.dataset.hapusPasangan));
       await bukaRinci(orang.id);
       return;
     }
@@ -1354,6 +1576,14 @@ function pasangPeristiwa() {
   $("ringkasan").addEventListener("click", (peristiwa) => {
     const tombol = peristiwa.target.closest("[data-buka]");
     if (tombol) bukaRinci(tombol.dataset.buka);
+  });
+
+  $("admin").addEventListener("submit", (peristiwa) => {
+    if (peristiwa.target.id === "form-pengaturan") void simpanPengaturanAdmin(peristiwa);
+  });
+  $("admin").addEventListener("click", (peristiwa) => {
+    const tombol = peristiwa.target.closest("button[data-admin]");
+    if (tombol) void tanganiAksiAdmin(tombol);
   });
   $("tombol-ekspor").addEventListener("click", tanganiEkspor);
   $("tombol-kronologi").addEventListener("click", () => {

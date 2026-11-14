@@ -18,6 +18,24 @@ export function wajibMasuk(penyimpanan: Penyimpanan): RequestHandler {
         next(galat(401, "SESI_KEDALUWARSA", "Sesi Anda sudah berakhir. Silakan masuk kembali."));
         return;
       }
+      // Akun yang dinonaktifkan atau masih menunggu persetujuan tidak boleh memakai API,
+      // meskipun masih memegang sesi lama.
+      if (pengguna.status === "nonaktif") {
+        next(
+          galat(403, "AKUN_NONAKTIF", "Akun ini dinonaktifkan admin. Hubungi admin keluarga."),
+        );
+        return;
+      }
+      if (pengguna.status === "menunggu") {
+        next(
+          galat(
+            403,
+            "AKUN_MENUNGGU",
+            "Akun Anda masih menunggu persetujuan admin. Silakan coba lagi nanti.",
+          ),
+        );
+        return;
+      }
       req.pengguna = pengguna;
       req.tokenSesi = token;
       next();
@@ -27,9 +45,20 @@ export function wajibMasuk(penyimpanan: Penyimpanan): RequestHandler {
   };
 }
 
+/** Hanya admin yang boleh lewat. Dipasang setelah `wajibMasuk`. */
+export const wajibAdmin: RequestHandler = (req, _res, next) => {
+  if (req.pengguna?.peran !== "admin") {
+    next(galat(403, "BUKAN_ADMIN", "Hanya admin yang boleh membuka pengaturan ini."));
+    return;
+  }
+  next();
+};
+
 /**
  * Memastikan ruang kerja ada dan milik pengguna yang sedang masuk.
  * Ruang kerja milik orang lain dijawab 404 agar keberadaannya tidak bocor.
+ * Ruang kerja yang belum disetujui admin masih bisa dibaca pemiliknya, tetapi
+ * tidak bisa diisi data sampai disetujui.
  */
 export function muatRuangKerja(penyimpanan: Penyimpanan): RequestHandler {
   return async (req, _res, next) => {
@@ -44,6 +73,17 @@ export function muatRuangKerja(penyimpanan: Penyimpanan): RequestHandler {
       );
       if (!ruangKerja) {
         next(galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan."));
+        return;
+      }
+      const menulis = req.method !== "GET" && req.method !== "HEAD";
+      if (ruangKerja.status === "menunggu" && menulis && req.pengguna.peran !== "admin") {
+        next(
+          galat(
+            403,
+            "RUANG_MENUNGGU",
+            "Ruang kerja ini menunggu persetujuan admin sebelum bisa diisi data.",
+          ),
+        );
         return;
       }
       req.ruangKerja = ruangKerja;

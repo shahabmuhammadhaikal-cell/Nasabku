@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import type { Konfigurasi } from "./config.js";
 import type { Penyimpanan } from "./data/penyimpanan.js";
+import { ruteAdmin } from "./routes/admin.js";
 import { ruteAuth } from "./routes/auth.js";
 import { ruteKesehatan } from "./routes/health.js";
 import { ruteOrang } from "./routes/orang.js";
@@ -9,7 +10,8 @@ import { rutePasangan } from "./routes/pasangan.js";
 import { ruteRelasi } from "./routes/relasi.js";
 import { ruteRuangKerja } from "./routes/ruangKerja.js";
 import { ruteSilsilah } from "./routes/silsilah.js";
-import { muatRuangKerja, wajibMasuk } from "./middleware/auth.js";
+import { ruteUsulan } from "./routes/usulan.js";
+import { muatRuangKerja, wajibAdmin, wajibMasuk } from "./middleware/auth.js";
 import { ruteTidakAda, tanganiGalat } from "./middleware/galat.js";
 import { idPermintaan } from "./middleware/idPermintaan.js";
 
@@ -39,6 +41,13 @@ export function buatAplikasi({ penyimpanan, konfigurasi }: KetergantunganAplikas
   api.use("/auth", ruteAuth(penyimpanan, konfigurasi));
 
   api.use("/workspaces", wajibMasuk(penyimpanan), ruteRuangKerja(penyimpanan));
+  api.use("/usulan", wajibMasuk(penyimpanan), ruteUsulan(penyimpanan));
+  api.use(
+    "/admin",
+    wajibMasuk(penyimpanan),
+    wajibAdmin,
+    ruteAdmin(penyimpanan),
+  );
   api.use(
     "/workspaces/:workspaceId/persons",
     wajibMasuk(penyimpanan),

@@ -1553,3 +1553,125 @@ main {
 .panel-utama {
   align-self: stretch;
 }
+
+/* ---------------------------------- Admin -------------------------------- */
+
+.admin {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.admin-kartu header {
+  margin-bottom: 12px;
+}
+
+.admin-kartu h3 {
+  margin: 0 0 4px;
+}
+
+.admin-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-centang {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  color: var(--teks);
+  padding: 10px 12px;
+  border: 1px solid var(--garis);
+  border-radius: 10px;
+  background: #fbfbf8;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.admin-centang input {
+  margin-top: 3px;
+  accent-color: var(--hijau);
+  width: 16px;
+  height: 16px;
+}
+
+.admin-centang span {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-batas {
+  display: grid;
+  gap: 4px;
+  max-width: 260px;
+}
+
+.admin-batas input {
+  padding: 9px 11px;
+  border: 1px solid var(--garis);
+  border-radius: 9px;
+  font: inherit;
+  background: var(--kartu);
+  color: var(--teks);
+}
+
+.admin-form button[type="submit"] {
+  justify-self: start;
+}
+
+.admin-daftar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-baris {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--garis);
+  border-radius: 10px;
+  background: var(--kartu);
+}
+
+.admin-isi {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-isi small {
+  color: var(--samar);
+  font-size: 0.78rem;
+}
+
+.admin-tombol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.admin-tombol small {
+  color: var(--samar);
+  font-size: 0.78rem;
+}
+
+.lencana {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--hijau-muda);
+  color: var(--hijau-gelap);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}

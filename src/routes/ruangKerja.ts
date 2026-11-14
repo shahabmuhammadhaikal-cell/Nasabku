@@ -3,6 +3,7 @@ import { BATAS_DOKUMEN, type Penyimpanan } from "../data/penyimpanan.js";
 import type { Relasi } from "../data/tipe.js";
 import { BATAS_IMPOR_ORANG, bacaGedcom, buatGedcom } from "../lib/gedcom.js";
 import { galat } from "../lib/kesalahan.js";
+import { harusDiajukan, periksaBatasOrang } from "../lib/persetujuan.js";
 import { adaPerubahan, gabungkanData, samaOrang } from "../lib/pencocokan.js";
 import { akanMembentukSiklus } from "../lib/silsilah.js";
 import { hitungStatistik } from "../lib/statistik.js";
@@ -31,8 +32,19 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
   rute.post("/", async (req, res) => {
     const badan = badanObjek(req.body);
     const nama = teksWajib(badan, "nama", "Nama ruang kerja", 2, 80);
-    const ruangKerja = await penyimpanan.buatRuangKerja(req.pengguna?.id ?? "", nama);
-    res.status(201).json({ ruangKerja });
+    const pengaturan = await penyimpanan.ambilPengaturan();
+    const menunggu = pengaturan.setujuiRuangKerja && req.pengguna?.peran !== "admin";
+    const ruangKerja = await penyimpanan.buatRuangKerja(
+      req.pengguna?.id ?? "",
+      nama,
+      menunggu ? "menunggu" : "aktif",
+    );
+    res.status(201).json({
+      ruangKerja,
+      ...(menunggu
+        ? { pesan: "Ruang kerja baru menunggu persetujuan admin sebelum bisa diisi data." }
+        : {}),
+    });
   });
 
   rute.get("/:workspaceId/stats", muatRuangKerja(penyimpanan), async (req, res) => {
@@ -100,6 +112,17 @@ export function ruteRuangKerja(penyimpanan: Penyimpanan): Router {
   rute.post("/:workspaceId/import", muatRuangKerja(penyimpanan), async (req, res) => {
     const ruangKerja = req.ruangKerja;
     if (!ruangKerja) throw galat(404, "RUANG_TIDAK_DITEMUKAN", "Ruang kerja tidak ditemukan.");
+
+    // Impor massal tidak masuk antrean usulan: hanya admin yang boleh saat
+    // persetujuan perubahan menyala.
+    if (await harusDiajukan(penyimpanan, req.pengguna)) {
+      throw galat(
+        403,
+        "IMPOR_KHUSUS_ADMIN",
+        "Saat persetujuan perubahan aktif, impor GEDCOM hanya bisa dilakukan admin.",
+      );
+    }
+    await periksaBatasOrang(penyimpanan, ruangKerja.id);
 
     const badan = badanObjek(req.body);
     const isi = teksWajib(badan, "gedcom", "Isi GEDCOM", 1, 1_500_000);

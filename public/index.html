@@ -60,6 +60,17 @@
         <button type="button" class="tab-tampilan-tombol" data-tampilan="orang" role="tab" aria-selected="false">
           <span aria-hidden="true">☰</span> Daftar orang
         </button>
+        <button
+          type="button"
+          class="tab-tampilan-tombol"
+          id="tab-admin"
+          data-tampilan="admin"
+          role="tab"
+          aria-selected="false"
+          hidden
+        >
+          <span aria-hidden="true">⚙</span> Admin
+        </button>
       </div>
       <div class="navigasi-aksi">
         <button type="button" class="tombol tombol-samar" id="tombol-ekspor" title="Unduh seluruh data sebagai JSON">
@@ -199,6 +210,7 @@
           <div class="isi-panel">
             <div class="kolom-daftar">
               <section id="ringkasan" class="ringkasan" hidden></section>
+              <section id="admin" class="admin" hidden></section>
 
               <form id="form-orang" class="kartu-form" hidden novalidate>
                 <header class="form-kepala">

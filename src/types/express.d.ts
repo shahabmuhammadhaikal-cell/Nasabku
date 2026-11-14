@@ -1,11 +1,7 @@
-import type { RuangKerja } from "../data/tipe.js";
+import type { PenggunaPublik, RuangKerja } from "../data/tipe.js";
 
-export interface PenggunaPermintaan {
-  id: string;
-  email: string;
-  nama: string;
-  dibuatPada: string;
-}
+/** Pengguna yang sudah dilampirkan middleware `wajibMasuk`. */
+export type PenggunaPermintaan = PenggunaPublik;
 
 declare global {
   namespace Express {

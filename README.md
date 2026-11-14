@@ -65,10 +65,14 @@ Bila `FIRESTORE_EMULATOR_HOST` disetel, klien otomatis memakai emulator dan tida
 ## Skema Firestore
 
 ```
-pengguna/{penggunaId}            { email, nama, sandiHash, dibuatPada }
+pengguna/{penggunaId}            { email, nama, sandiHash, dibuatPada, peran, status }
 emailIndex/{email}               { penggunaId }              ← keunikan email
 sesi/{sha256(token)}             { penggunaId, dibuatPada, kedaluwarsaPada }
-ruangKerja/{ruangKerjaId}        { nama, pemilikId, dibuatPada }
+pengaturan/global                { pendaftaranTerbuka, setujuiPendaftaran, setujuiRuangKerja,
+                                   setujuiPerubahan, maksOrangPerRuang }
+usulan/{usulanId}                { ruangKerjaId, penggunaId, jenis, aksi, targetId,
+                                   data, status, dibuatPada, diputuskanPada, catatanAdmin }
+ruangKerja/{ruangKerjaId}        { nama, pemilikId, dibuatPada, status }
 ruangKerja/{id}/orang/{orangId}  { nama, namaLain, jenisKelamin, tanggalLahir, tempatLahir,
                                    tanggalWafat, tempatWafat, pekerjaan, tempatPemakaman,
                                    catatan, sumber, ... }
@@ -87,6 +91,37 @@ angka `tahunLahir`/`tahunWafat` tetap terbaca.
 - Semua kueri memakai kesetaraan satu field, jadi **tidak perlu indeks komposit**.
 
 Aturan keamanan (`firestore.rules`) menolak seluruh akses klien; hanya Admin SDK di server yang melewatinya.
+
+### Akses admin
+
+`pengguna.peran` bernilai `admin` atau `pengguna`, dan `pengguna.status` bernilai `aktif`, `menunggu`, atau
+`nonaktif`. **Akun pertama yang mendaftar otomatis menjadi admin**, sehingga proyek baru bisa diatur tanpa
+skrip. Untuk menaikkan akun lain (atau mengembalikan akses admin), jalankan dari komputer yang punya
+kredensial Firestore:
+
+```bash
+npm run admin:promote -- email@contoh.com
+```
+
+Skrip itu menyetel `peran: admin` dan `status: aktif` untuk email tersebut. Setelan lain bisa diubah admin
+dari tab **Admin** di aplikasi:
+
+| Setelan | Bawaan | Akibat bila dinyalakan |
+| --- | --- | --- |
+| `pendaftaranTerbuka` | `true` | Bila dimatikan, `POST /auth/register` menjawab `403 PENDAFTARAN_DITUTUP`. |
+| `setujuiPendaftaran` | `false` | Akun baru berstatus `menunggu`, tidak diberi sesi, dan ditolak saat masuk (`403 AKUN_MENUNGGU`) sampai disetujui. |
+| `setujuiRuangKerja` | `false` | Ruang kerja baru berstatus `menunggu`; pemiliknya masih bisa membacanya tetapi setiap penulisan menjawab `403 RUANG_MENUNGGU`. |
+| `setujuiPerubahan` | `false` | Perubahan data oleh pengguna biasa menjadi dokumen `usulan` (HTTP `202`), bukan tulisan langsung. Admin tetap menulis langsung; impor GEDCOM hanya untuk admin. |
+| `maksOrangPerRuang` | `0` | `0` berarti tanpa batas. Bila tercapai, penambahan orang (dan impor) menjawab `422 BATAS_ORANG_TERCAPAI`. |
+
+Semua setelan bawaan **mematikan persetujuan**, jadi pengguna yang sudah ada tidak tiba-tiba terkunci.
+Persetujuan hanya berlaku bagi yang belum aktif/berstatus menunggu. Admin tidak bisa mengubah peran atau
+menghapus akunnya sendiri, dan tidak otomatis bisa menyunting ruang kerja milik orang lain (tetap `404`).
+
+Usulan menyimpan `jenis` (`orang`, `relasi`, `pasangan`), `aksi` (`tambah`, `ubah`, `hapus`), `targetId`, dan
+`data` yang sudah tervalidasi. Saat admin menyetujui, usulan diterapkan ke ruang kerja lewat jalur yang sama
+dengan tulisan biasa; penolakan tidak mengubah data. Usulan yang sudah diputuskan tidak bisa diputuskan lagi
+(`409 USULAN_SUDAH_DIPUTUSKAN`).
 
 ### Menerapkan aturan keamanan ke `nasabku-prod`
 
@@ -189,6 +224,14 @@ Semua di bawah `/api/v1`. Sesi memakai cookie `HttpOnly` `nasabku_sesi`.
 | GET | `/workspaces/:id/export` | Unduh seluruh data sebagai JSON; `?format=gedcom` untuk GEDCOM 5.5.1. |
 | POST | `/workspaces/:id/import` | `{ gedcom }` → menambah orang dan relasi dari berkas GEDCOM. |
 | GET | `/workspaces/:id/tree/:orangId` | `?arah=turun\|naik&kedalaman=1..10` → pohon silsilah. |
+| GET | `/usulan` | Usulan perubahan milik pengguna yang sedang masuk beserta statusnya. |
+| GET/PATCH | `/admin/pengaturan` | Baca / ubah setelan global (semua field opsional). |
+| GET | `/admin/pengguna` | Semua akun beserta `jumlahRuangKerja`. |
+| PATCH/DELETE | `/admin/pengguna/:id` | Ubah `status`/`peran`/`nama`, atau hapus akun beserta ruang kerjanya. |
+| GET | `/admin/ruang-kerja` | Semua ruang kerja beserta nama pemilik. |
+| PATCH | `/admin/ruang-kerja/:id` | `{ status: "aktif" \| "menunggu" }`. |
+| GET | `/admin/usulan` | `?status=menunggu\|disetujui\|ditolak` → antrean usulan. |
+| PATCH | `/admin/usulan/:id` | `{ status: "disetujui" \| "ditolak", catatan? }` → putuskan usulan. |
 
 Galat selalu berbentuk `{ "error": { "kode", "pesan", "rincian?" }, "idPermintaan" }`.
 

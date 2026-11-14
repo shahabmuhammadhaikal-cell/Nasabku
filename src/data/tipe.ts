@@ -1,10 +1,15 @@
 import type { Dokumen } from "./port.js";
 
+export type PeranPengguna = "admin" | "pengguna";
+export type StatusPengguna = "aktif" | "menunggu" | "nonaktif";
+
 export interface PenggunaPublik {
   id: string;
   email: string;
   nama: string;
   dibuatPada: string;
+  peran: PeranPengguna;
+  status: StatusPengguna;
 }
 
 /** Pengguna beserta hash sandi; tidak pernah dikirim ke klien. */
@@ -12,11 +17,48 @@ export interface PenggunaTersimpan extends PenggunaPublik {
   sandiHash: string;
 }
 
+export type StatusRuangKerja = "aktif" | "menunggu";
+
 export interface RuangKerja {
   id: string;
   nama: string;
   pemilikId: string;
   dibuatPada: string;
+  status: StatusRuangKerja;
+}
+
+/** Setelan global yang hanya bisa diubah admin. */
+export interface Pengaturan {
+  /** Bila false, pendaftaran akun baru ditolak. */
+  pendaftaranTerbuka: boolean;
+  /** Akun baru menunggu persetujuan admin sebelum bisa masuk. */
+  setujuiPendaftaran: boolean;
+  /** Ruang kerja baru menunggu persetujuan sebelum bisa diisi data. */
+  setujuiRuangKerja: boolean;
+  /** Perubahan data oleh pengguna biasa diajukan dulu ke admin. */
+  setujuiPerubahan: boolean;
+  /** 0 berarti tanpa batas. */
+  maksOrangPerRuang: number;
+}
+
+export type JenisUsulan = "orang" | "relasi" | "pasangan";
+export type AksiUsulan = "tambah" | "ubah" | "hapus";
+export type StatusUsulan = "menunggu" | "disetujui" | "ditolak";
+
+/** Usulan perubahan data silsilah yang menunggu keputusan admin. */
+export interface Usulan {
+  id: string;
+  ruangKerjaId: string;
+  penggunaId: string;
+  jenis: JenisUsulan;
+  aksi: AksiUsulan;
+  /** Id orang/relasi/pasangan yang diubah atau dihapus. */
+  targetId: string | null;
+  data: Record<string, unknown>;
+  status: StatusUsulan;
+  dibuatPada: string;
+  diputuskanPada: string | null;
+  catatanAdmin: string | null;
 }
 
 export type JenisKelamin = "L" | "P" | "U";
@@ -108,6 +150,10 @@ export function kePengguna(dokumen: Dokumen): PenggunaPublik {
     email: teks(data.email),
     nama: teks(data.nama),
     dibuatPada: teks(data.dibuatPada),
+    // Dokumen lama belum punya peran/status: dianggap pengguna aktif biasa.
+    peran: data.peran === "admin" ? "admin" : "pengguna",
+    status:
+      data.status === "menunggu" || data.status === "nonaktif" ? data.status : "aktif",
   };
 }
 
@@ -122,6 +168,66 @@ export function keRuangKerja(dokumen: Dokumen): RuangKerja {
     nama: teks(data.nama),
     pemilikId: teks(data.pemilikId),
     dibuatPada: teks(data.dibuatPada),
+    status: data.status === "menunggu" ? "menunggu" : "aktif",
+  };
+}
+
+export const PENGATURAN_BAWAAN: Pengaturan = {
+  pendaftaranTerbuka: true,
+  setujuiPendaftaran: false,
+  setujuiRuangKerja: false,
+  setujuiPerubahan: false,
+  maksOrangPerRuang: 0,
+};
+
+export function kePengaturan(dokumen: Dokumen | null): Pengaturan {
+  const data = dokumen?.data ?? {};
+  const angka = Number(data.maksOrangPerRuang);
+  return {
+    pendaftaranTerbuka:
+      typeof data.pendaftaranTerbuka === "boolean"
+        ? data.pendaftaranTerbuka
+        : PENGATURAN_BAWAAN.pendaftaranTerbuka,
+    setujuiPendaftaran:
+      typeof data.setujuiPendaftaran === "boolean"
+        ? data.setujuiPendaftaran
+        : PENGATURAN_BAWAAN.setujuiPendaftaran,
+    setujuiRuangKerja:
+      typeof data.setujuiRuangKerja === "boolean"
+        ? data.setujuiRuangKerja
+        : PENGATURAN_BAWAAN.setujuiRuangKerja,
+    setujuiPerubahan:
+      typeof data.setujuiPerubahan === "boolean"
+        ? data.setujuiPerubahan
+        : PENGATURAN_BAWAAN.setujuiPerubahan,
+    maksOrangPerRuang:
+      Number.isInteger(angka) && angka > 0
+        ? angka
+        : PENGATURAN_BAWAAN.maksOrangPerRuang,
+  };
+}
+
+export function keUsulan(dokumen: Dokumen): Usulan {
+  const { data } = dokumen;
+  const jenis = data.jenis === "relasi" || data.jenis === "pasangan" ? data.jenis : "orang";
+  const aksi =
+    data.aksi === "ubah" || data.aksi === "hapus" ? data.aksi : "tambah";
+  return {
+    id: dokumen.id,
+    ruangKerjaId: teks(data.ruangKerjaId),
+    penggunaId: teks(data.penggunaId),
+    jenis,
+    aksi,
+    targetId: teksAtauNull(data.targetId),
+    data:
+      typeof data.data === "object" && data.data !== null
+        ? (data.data as Record<string, unknown>)
+        : {},
+    status:
+      data.status === "disetujui" || data.status === "ditolak" ? data.status : "menunggu",
+    dibuatPada: teks(data.dibuatPada),
+    diputuskanPada: teksAtauNull(data.diputuskanPada),
+    catatanAdmin: teksAtauNull(data.catatanAdmin),
   };
 }
 
