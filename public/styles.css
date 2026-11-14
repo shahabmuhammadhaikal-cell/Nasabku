@@ -448,6 +448,11 @@ form > label + .baris,
   min-width: 0;
 }
 
+/* Tanpa panel detail, kolom tengah memakai seluruh lebar. */
+.isi-panel:has(.kolom-rinci[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .kolom-rinci {
   position: sticky;
   top: 0;
@@ -1061,6 +1066,138 @@ textarea:focus-visible,
 }
 
 /* Pohon: pasangan berdampingan dan garis pernikahan */
+/* Ringkasan setelah masuk */
+.ringkasan {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ringkasan-kartu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.ringkasan-angka {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.9rem 1rem;
+  background: var(--kartu);
+  border: 1px solid var(--garis);
+  border-radius: var(--radius);
+  box-shadow: var(--bayang);
+}
+
+.ringkasan-label {
+  font-size: 0.8rem;
+  color: var(--samar);
+  letter-spacing: 0.01em;
+}
+
+.ringkasan-angka strong {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--hijau-gelap);
+}
+
+.ringkasan-angka small {
+  font-size: 0.78rem;
+  color: var(--samar);
+}
+
+.ringkasan-panel-baris {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.ringkasan-panel {
+  padding: 0.9rem 1rem 0.7rem;
+  background: var(--kartu);
+  border: 1px solid var(--garis);
+  border-radius: var(--radius);
+  box-shadow: var(--bayang);
+}
+
+.ringkasan-panel h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.15rem;
+}
+
+.ringkasan-panel header {
+  margin-bottom: 0.5rem;
+}
+
+.ringkasan-daftar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tautan-orang {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.tautan-orang:hover,
+.tautan-orang:focus-visible {
+  background: var(--hijau-muda);
+  border-color: var(--hijau);
+}
+
+.tautan-orang strong {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.tautan-orang span {
+  font-size: 0.78rem;
+  color: var(--samar);
+}
+
+.tab-tampilan {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  background: var(--hijau-muda);
+  border: 1px solid var(--garis);
+  border-radius: 999px;
+}
+
+.tab-tampilan-tombol {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.32rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hijau-gelap);
+  cursor: pointer;
+}
+
+.tab-tampilan-tombol.aktif {
+  background: var(--kartu);
+  box-shadow: var(--bayang);
+  font-weight: 600;
+}
+
 .pohon-garis {
   fill: none;
   stroke: #c9d8d0;

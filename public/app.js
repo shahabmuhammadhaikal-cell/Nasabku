@@ -14,6 +14,8 @@ const state = {
   cari: "",
   saring: { jk: "", status: "", dari: "", sampai: "" },
   modeForm: "tambah",
+  tampilan: "ringkasan",
+  statistik: null,
 };
 
 const esc = (nilai) =>
@@ -199,6 +201,7 @@ async function pilihRuang(ruang) {
   $("cari").value = "";
   state.pasangan = [];
   state.ubahPasangan = null;
+  state.statistik = null;
   state.saring = { jk: "", status: "", dari: "", sampai: "" };
   $("saring-jk").value = "";
   $("saring-status").value = "";
@@ -213,8 +216,10 @@ async function pilihRuang(ruang) {
     state.orang = [];
     gambarDaftarOrang();
     $("statistik").hidden = true;
+    setTampilan("ringkasan");
     return;
   }
+  setTampilan("ringkasan");
   await muatOrang();
 }
 
@@ -240,6 +245,7 @@ async function muatOrang() {
   state.orang = hasil.orang;
   state.pasangan = hasilPasangan.pasangan;
   gambarDaftarOrang();
+  if (state.tampilan === "ringkasan") gambarRingkasan();
   if (!$("kronologi").hidden) gambarKronologi();
   await muatStatistik();
 }
@@ -334,7 +340,9 @@ async function muatStatistik() {
   }
   try {
     const hasil = await api.statistik(state.ruang.id);
+    state.statistik = hasil.statistik;
     gambarStatistik(hasil.statistik);
+    if (state.tampilan === "ringkasan") gambarRingkasan();
   } catch {
     wadah.hidden = true;
   }
@@ -361,7 +369,158 @@ function gambarStatistik(statistik) {
     chip(statistik.jumlahAkar, "akar"),
     ...(rentang ? [chip(rentang, "rentang lahir")] : []),
   ].join("");
-  wadah.hidden = statistik.jumlahOrang === 0;
+  wadah.hidden = statistik.jumlahOrang === 0 || state.tampilan === "ringkasan";
+}
+
+/* ------------------------------- Ringkasan ------------------------------- */
+
+const labelStatusPernikahan = {
+  menikah: "Masih menikah",
+  cerai: "Bercerai",
+  meninggal: "Pasangan meninggal",
+};
+
+/** Ulang tahun berikutnya untuk orang dengan tanggal lahir lengkap. */
+function ulangTahunTerdekat(batas = 5) {
+  const sekarang = new Date();
+  const hariIni = new Date(sekarang.getFullYear(), sekarang.getMonth(), sekarang.getDate());
+  const hasil = [];
+
+  for (const orang of state.orang) {
+    if (orang.tanggalWafat) continue;
+    const cocok = /^(\d{4})-(\d{2})-(\d{2})$/.exec(orang.tanggalLahir ?? "");
+    if (!cocok) continue;
+    const tahun = Number(cocok[1]);
+    const bulan = Number(cocok[2]) - 1;
+    const tanggal = Number(cocok[3]);
+    let ulang = new Date(hariIni.getFullYear(), bulan, tanggal);
+    if (ulang < hariIni) ulang = new Date(hariIni.getFullYear() + 1, bulan, tanggal);
+    const selisih = Math.round((ulang - hariIni) / 86_400_000);
+    hasil.push({
+      orang,
+      selisih,
+      usia: ulang.getFullYear() - tahun,
+      tanggal: `${tanggal} ${BULAN_PANJANG[bulan] ?? ""}`,
+    });
+  }
+
+  return hasil.sort((a, b) => a.selisih - b.selisih).slice(0, batas);
+}
+
+/** Pernikahan dengan tanggal terbaru, untuk kartu ringkasan. */
+function pernikahanTerbaru(batas = 5) {
+  const nama = (id) => state.orang.find((orang) => orang.id === id)?.nama ?? "?";
+  return state.pasangan
+    .filter((satu) => Boolean(satu.tanggalMenikah))
+    .sort((a, b) => (b.tanggalMenikah ?? "").localeCompare(a.tanggalMenikah ?? ""))
+    .slice(0, batas)
+    .map((satu) => ({ ...satu, namaA: nama(satu.orangAId), namaB: nama(satu.orangBId) }));
+}
+
+function gambarRingkasan() {
+  const wadah = $("ringkasan");
+  if (!wadah) return;
+  if (!state.ruang) {
+    wadah.innerHTML = `<p class="kosong">Pilih atau buat ruang kerja untuk melihat ringkasan.</p>`;
+    return;
+  }
+
+  const statistik = state.statistik ?? {
+    jumlahOrang: state.orang.length,
+    jumlahRelasi: 0,
+    jumlahPasangan: state.pasangan.length,
+    jumlahAngkatan: 0,
+    lakiLaki: 0,
+    perempuan: 0,
+  };
+
+  const kartu = [
+    [
+      "Orang tercatat",
+      statistik.jumlahOrang,
+      `${statistik.lakiLaki} laki-laki · ${statistik.perempuan} perempuan`,
+    ],
+    [
+      "Relasi orang tua–anak",
+      statistik.jumlahRelasi,
+      `${statistik.jumlahAngkatan ?? 0} angkatan`,
+    ],
+    ["Pasangan", statistik.jumlahPasangan, "pernikahan tercatat"],
+  ];
+
+  const ulangTahun = ulangTahunTerdekat();
+  const pernikahan = pernikahanTerbaru();
+
+  const daftarUlangTahun = ulangTahun.length
+    ? `<ul class="ringkasan-daftar">${ulangTahun
+        .map(({ orang, selisih, usia, tanggal }) => {
+          const kapan =
+            selisih === 0 ? "hari ini" : selisih === 1 ? "besok" : `dalam ${selisih} hari`;
+          return `<li><button type="button" class="tautan-orang" data-buka="${esc(orang.id)}"><strong>${esc(orang.nama)}</strong><span>${esc(tanggal)} · ${esc(kapan)} · ulang tahun ke-${esc(String(usia))}</span></button></li>`;
+        })
+        .join("")}</ul>`
+    : `<p class="keterangan kecil">Belum ada tanggal lahir lengkap (hari dan bulan) untuk dihitung.</p>`;
+
+  const daftarPernikahan = pernikahan.length
+    ? `<ul class="ringkasan-daftar">${pernikahan
+        .map(
+          (satu) =>
+            `<li><button type="button" class="tautan-orang" data-buka="${esc(satu.orangAId)}"><strong>${esc(satu.namaA)} &amp; ${esc(satu.namaB)}</strong><span>${esc(formatTanggal(satu.tanggalMenikah))} · ke-${esc(String(satu.urutanA))} bagi ${esc(satu.namaA)}, ke-${esc(String(satu.urutanB))} bagi ${esc(satu.namaB)}${satu.status !== "menikah" ? ` · ${esc(labelStatusPernikahan[satu.status] ?? satu.status)}` : ""}</span></button></li>`,
+        )
+        .join("")}</ul>`
+    : `<p class="keterangan kecil">Belum ada tanggal pernikahan yang tercatat.</p>`;
+
+  wadah.innerHTML = `
+    <div class="ringkasan-kartu">
+      ${kartu
+        .map(
+          ([label, nilai, catatan]) =>
+            `<article class="kartu ringkasan-angka"><span class="ringkasan-label">${esc(label)}</span><strong>${esc(String(nilai))}</strong><small>${esc(catatan)}</small></article>`,
+        )
+        .join("")}
+    </div>
+    <div class="ringkasan-panel-baris">
+      <article class="kartu ringkasan-panel">
+        <header>
+          <h3>Ulang tahun terdekat</h3>
+          <p class="keterangan kecil">Anggota keluarga yang masih hidup, urut dari yang paling dekat.</p>
+        </header>
+        ${daftarUlangTahun}
+      </article>
+      <article class="kartu ringkasan-panel">
+        <header>
+          <h3>Pernikahan terbaru</h3>
+          <p class="keterangan kecil">Tanggal menikah terbaru beserta urutan per orang.</p>
+        </header>
+        ${daftarPernikahan}
+      </article>
+    </div>`;
+}
+
+/** Mengalihkan kolom tengah antara ringkasan dan daftar orang. */
+function setTampilan(mode) {
+  state.tampilan = mode === "orang" ? "orang" : "ringkasan";
+  const ringkasan = mode === "ringkasan";
+
+  for (const tombol of document.querySelectorAll(".tab-tampilan-tombol")) {
+    const aktif = tombol.dataset.tampilan === state.tampilan;
+    tombol.classList.toggle("aktif", aktif);
+    tombol.setAttribute("aria-selected", aktif ? "true" : "false");
+  }
+
+  const wadah = $("ringkasan");
+  if (wadah) wadah.hidden = !ringkasan;
+  $("daftar-orang").hidden = ringkasan;
+  $("saring").hidden = ringkasan;
+  if ($("statistik")) $("statistik").hidden = ringkasan || !state.statistik;
+  $("kosong-orang").hidden = true;
+  $("kosong-saring").hidden = true;
+
+  if (ringkasan) gambarRingkasan();
+  else gambarDaftarOrang();
+
+  if (!state.statistik) muatStatistik();
+  else gambarStatistik(state.statistik);
 }
 
 function unduhBerkas(isi, namaBerkasUnduhan, tipe) {
@@ -1156,7 +1315,19 @@ function pasangPeristiwa() {
   $("form-ruang").addEventListener("submit", buatRuang);
   $("form-orang").addEventListener("submit", simpanOrang);
   $("batal-orang").addEventListener("click", tutupFormOrang);
-  $("tombol-tambah").addEventListener("click", () => bukaFormOrang(null));
+  $("tombol-tambah").addEventListener("click", () => {
+    setTampilan("orang");
+    bukaFormOrang(null);
+  });
+
+  for (const tombol of document.querySelectorAll(".tab-tampilan-tombol")) {
+    tombol.addEventListener("click", () => setTampilan(tombol.dataset.tampilan));
+  }
+
+  $("ringkasan").addEventListener("click", (peristiwa) => {
+    const tombol = peristiwa.target.closest("[data-buka]");
+    if (tombol) bukaRinci(tombol.dataset.buka);
+  });
   $("tombol-ekspor").addEventListener("click", tanganiEkspor);
   $("tombol-kronologi").addEventListener("click", () => {
     const wadah = $("kronologi");

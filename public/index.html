@@ -80,6 +80,14 @@
               <span id="jumlah-orang" class="keterangan kecil"></span>
             </div>
             <div class="alat-kanan">
+              <div class="tab-tampilan" role="tablist" aria-label="Tampilan panel">
+                <button type="button" class="tab-tampilan-tombol aktif" data-tampilan="ringkasan" role="tab" aria-selected="true">
+                  Ringkasan
+                </button>
+                <button type="button" class="tab-tampilan-tombol" data-tampilan="orang" role="tab" aria-selected="false">
+                  Daftar orang
+                </button>
+              </div>
               <input
                 type="search"
                 id="cari"
@@ -150,6 +158,8 @@
 
           <div class="isi-panel">
             <div class="kolom-daftar">
+              <section id="ringkasan" class="ringkasan" hidden></section>
+
               <form id="form-orang" class="kartu-form" hidden novalidate>
                 <header class="form-kepala">
                   <h3 id="judul-form-orang">Tambah orang</h3>
